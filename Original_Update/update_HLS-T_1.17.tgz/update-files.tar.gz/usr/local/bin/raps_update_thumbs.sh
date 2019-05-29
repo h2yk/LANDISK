@@ -1,0 +1,1 @@
+/usr/local/raps/bin/update_thumbs.sh

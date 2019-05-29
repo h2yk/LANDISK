@@ -1,0 +1,12 @@
+<response>
+	<entrylist>
+		<entry type="auth" result="@("ログイン結果")">
+			<users>
+				<user<!--# if(@getValue("ドメイン")){ #--> domain="@("ドメイン")"<!--# } #-->>
+					<name>@("ユーザー名")</name>
+					<passwd>@("パスワード")</passwd>
+				</user>
+			</users>
+		</entry>
+	</entrylist>
+</response>

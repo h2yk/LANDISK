@@ -1,0 +1,99 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+<meta http-equiv="Cache-Control" content="no-cache" />
+<meta name="viewport" content="width=device-width,user-scalable=no,maximum-scale=1" />
+<!--[if lt IE 9]>
+<script src="<!--#=C4_HOME_URL#-->/js/css3-mediaqueries.js"></script>
+<![endif]-->
+<title><!--#=LD_LABEL_NAME#--></title>
+<!--===== css =====-->
+<link rel="stylesheet" type="text/css" href="<!--#=C4_HOME_URL#-->/css/bootstrap.css">
+<link rel="stylesheet" type="text/css" href="<!--#=C4_HOME_URL#-->/css/import.css">
+<link rel="stylesheet" type="text/css" href="<!--#=C4_HOME_URL#-->/css/style.css">
+<style type="text/css">
+<!--
+div.setup {
+	margin: 0 auto;
+	text-align: center;
+}
+
+div.attention {
+	width: 800px;
+	margin-left: auto;
+	margin-right: auto;
+	border-width: 5px;
+	border-style: solid;
+	border-color: black;
+}
+-->
+</style>
+
+<!--===== js =====-->
+<script type="text/javascript" src="<!--#=C4_HOME_URL#-->/js/system.js" ></script>
+<script type="text/javascript">
+<!--
+function onSetup() {
+	location.href="<!--#=C4_HOME_URL#-->/sha2/Setup.exe";
+}
+-->
+</script>
+
+</head>
+
+<body>
+@("フォーム開始|tag")
+  <!--=========== wrapper =================-->
+<div id="wrapper"> 
+  <!--========= header ===============-->
+  <div id="header">
+    <p><span class="lable1 font18 strong"><!--#=LD_LABEL_NAME#--></span></p>
+    <nav id="mobile-bar" class="cf"></nav>
+  </div>
+  <!--========= /header ===============--> 
+  <!--========= contents ===============-->
+  <div id="contents">
+    <h2 class="midashi">@("ブランド名")@{簡単セットアップ}</h2>
+      <div class="setup">@{パソコンから本製品の共有フォルダーを開くためのセットアップを行います}</div>
+
+      <div style="height: 30px"> </div>
+
+      <div class="attention">
+         <div class="setup">
+           [@{ご案内}]<br/>
+           @{初期状態の共有フォルダーは同じネットワーク内にある他のパソコンでもアクセス可能となっております。}<br/>
+           @{下記からログオンし、管理者パスワードと共有フォルダーの詳細アクセス権を設定してください。}<br/>
+           @("トップリンク開始|tag")<img src="<!--#=C4_HOME_URL#-->/img/common/top.png" width="220" height="50" alt="@{製品の詳細設定はこちら}"/>@("リンク終了|tag")
+        </div>
+      </div>
+
+      <div style="height: 60px"> </div>
+
+      <div class="setup">
+        <a href="javascript:onSetup()">
+        <img src="<!--#=C4_HOME_URL#-->/img/common/setup.png" width="500" height="130" alt="@{セットアップスタート}"/>
+	</a>
+      </div>
+      <div class="setup">@{※ダウンロードされるファイルを実行してください}</div>
+
+      <div style="height: 60px"> </div>
+
+      <div class="setup">[@{セットアップ完了後デスクトップ}]</div>
+      <div class="setup">@{下記の①を開くと②が見えるようになります}</div>
+      <div class="setup">
+        <img src="<!--#=C4_HOME_URL#-->/img/common/explorer.png" width="650" height="450"/>
+      </div>
+  </div>
+  <!--========= /contents ===============--> 
+  
+</div>
+  <!--=========== /wrapper =================-->
+@("デフォルトイベント|tag")
+@("フォーム終了|tag")
+<iframe style="height:0px;width:0px;visibility:hidden" src="about:blank">
+    this frame prevents back forward cache
+</iframe>
+</body>
+</html>

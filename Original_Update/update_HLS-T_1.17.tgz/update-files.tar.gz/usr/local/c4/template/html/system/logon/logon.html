@@ -1,0 +1,68 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+<meta http-equiv="Cache-Control" content="no-cache" />
+<meta name="viewport" content="width=device-width,user-scalable=no,maximum-scale=1" />
+<!--[if lt IE 9]>
+<script src="<!--#=C4_HOME_URL#-->/js/css3-mediaqueries.js"></script>
+<![endif]-->
+<title><!--#=LD_LABEL_NAME#--></title>
+<!--===== css =====-->
+<link rel="stylesheet" type="text/css" href="<!--#=C4_HOME_URL#-->/css/bootstrap.css">
+<link rel="stylesheet" type="text/css" href="<!--#=C4_HOME_URL#-->/css/import.css">
+<link rel="stylesheet" type="text/css" href="<!--#=C4_HOME_URL#-->/css/style.css">
+<!--===== js =====-->
+<script type="text/javascript" src="<!--#=C4_HOME_URL#-->/js/system.js" ></script>
+
+</head>
+
+<body>
+@("フォーム開始|tag")
+  <!--=========== wrapper =================-->
+<div id="wrapper"> 
+  <!--========= header ===============-->
+  <div id="header">
+    <p><span class="lable1 font18 strong"><!--#=LD_LABEL_NAME#--></span></p>
+    <nav id="mobile-bar" class="cf"></nav>
+  </div>
+  <!--========= /header ===============--> 
+  <!--========= contents ===============-->
+  <div id="contents">
+    <h2 class="midashi">@{ログオン}</h2>
+      @("エラーメッセージ|message|color:#CC3333")
+      <div class="form-group">
+        <label for="exampleInputEmail1" class="lable1">@{パスワードを入力してください}</label>
+        @("パスワード|tag")
+      </div>
+      <div class="submit_box">
+        @("ログオンリンク開始|tag")<img src="<!--#=C4_HOME_URL#-->/img/common/submit.png" width="125" height="30" alt="@{ログオン}"/>@("リンク終了|tag")
+      </div>
+<!--# if(@("SOLIDモデル判定")) { #-->
+      <br>
+      <br>
+      <div id="flogo">
+        <p id="footer_name"><img src="../../img/common/solid_footer.png" width="241px" height="35px;"></p>
+      </div>
+<!--# } else {#-->
+      <label>
+<br>
+        @{パスワードをお忘れになった場合は、画面で見るマニュアルをご覧ください。
+}<br>
+        @("サポートリンク開始|tag")@{サポート情報ページ}@("リンク終了|tag")
+      </label>
+<!--# } #-->
+  </div>
+  <!--========= /contents ===============--> 
+
+</div>
+  <!--=========== /wrapper =================-->
+@("タイムアウトフラグ|tag")
+@("デフォルトイベント|tag")
+@("フォーム終了|tag")
+<iframe style="height:0px;width:0px;visibility:hidden" src="about:blank">
+    this frame prevents back forward cache
+</iframe>
+</body>
+</html>

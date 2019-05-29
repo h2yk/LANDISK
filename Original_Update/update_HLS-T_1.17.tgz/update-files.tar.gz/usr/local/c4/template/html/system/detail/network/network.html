@@ -1,0 +1,29 @@
+      <!--========= ネットワーク (アコーディオン) ================-->
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h4 id="panel-title1" class="panel-title"><a class="accordion-toggle" data-toggle="collapse" data-parent="" href="#collapseNetwork">@{ ネットワーク }</a></h4>
+        </div>
+        <div id="collapseNetwork" class="accordion-body collapse">
+          <!--========= panel-body (アコーディオン内) =================-->
+          <div class="panel-body">
+            <!--========= タブ 見出し ネットワーク ================-->
+            <ul class="nav nav-tabs">
+              <li class="active"><a href="#tcp" data-toggle="tab">@{TCP/IP設定}</a></li>
+              <li><a href="#microsoft" data-toggle="tab">@{Microsoft<br>ネットワーク}</a></li>
+<!--# if(!@("SOLIDモデル判定")) { #-->
+              <li><a href="#prokishi" data-toggle="tab">@{プロキシ設定}</a></li>
+<!--# } #-->
+            </ul>
+            <!--========= /タブ 見出し ネットワーク ================-->
+            <!--========= タブ 内容全体 ネットワーク ================-->
+            <div class="tab-content">
+              <!--# @execView("/system/detail/network/network/input") #-->
+              <!--# @execView("/system/detail/network/microsoft/input") #-->
+              <!--# @execView("/system/detail/network/proxy/input") #-->
+            </div>
+            <!--========= /タブ 内容全体 ネットワーク ================-->
+          </div>
+          <!--========= /panel-body (アコーディオン内)  =================-->
+        </div>
+      </div>
+      <!--========= /ネットワーク (アコーディオン) ======================-->

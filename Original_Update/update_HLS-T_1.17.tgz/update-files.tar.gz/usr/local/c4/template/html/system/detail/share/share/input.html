@@ -1,0 +1,206 @@
+  <!--===================Modal7 btn_ok → 新しいユーザーの登録ダイアログ) ==============================-->
+  <div class="modal fade" id="SHARE_myModal1" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <!-- Modalヘッダー -->
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+          <h4 class="modal-title" id="myModalLabel"><div id="SHARE_add" style='display:none'>@{新しい共有フォルダーの作成}</div></h4>
+          <h4 class="modal-title" id="myModalLabel"><div id="SHARE_edit" style='display:none'>@{共有フォルダーの変更}</div></h4>
+        </div>
+        <!-- /Modalヘッダー -->
+        <!-- Modal内容 -->
+        <div class="modal-body">
+          <div id="SHARE_folder_fault_area">
+            <p class="tac mb5"><img src="<!--#=C4_HOME_URL#-->/img/common/keikoku.png" width="60" height="21" alt="@{警告}"/></p>
+            <br>
+          </div>
+          <span id="SHARE_message" class="red"></span>
+          <div class="block_wrap">
+            <!--=== block ====-->
+            <div class="block">
+              <div class="block_innner">
+                <label for="" class="lable1 mb15">@{フォルダー名}</label>
+                @("SHARE_共有フォルダ名|tag")
+              </div>
+            </div>
+            <!--=== /block ====-->
+            <!--=== block ====-->
+            <div class="block">
+              <div class="block_innner">
+                <label for="" class="lable1 mb15">@{フォルダーコメント}</label>
+                <p>
+                  @("SHARE_共有フォルダコメント|tag")
+                </p>
+              </div>
+            </div>
+            <!--=== /block ====-->
+            <!--=== block ====-->
+<!--# if(@("SOLIDモデル判定")) { #-->
+            <div class="block" style="display:none;">
+<!--# } else { #-->
+            <div class="block">
+<!--# } #-->
+              <div class="block_innner">
+                <label for="" class="lable1 mb15">@{読み取り専用}</label>
+                <p class="radio_p">
+                  @("SHARE_読み取り専用区分|tag")
+                </p>
+              </div>
+            </div>
+            <!--=== /block ====-->
+            <!--=== block ====-->
+            <div class="block">
+              <div class="block_innner">
+                <label for="" class="lable1 mb15">@{サービス}</label>
+                <ul class="check_ul">
+                  <li>
+                    @("SHARE_サービス|tag")
+                  </li>
+<!--# if(@("SOLIDモデル判定")) { #-->
+                  <li style='display:none'>
+<!--# } else { #-->
+                  <li>
+<!--# } #-->
+                    <div id="SHARE_dropbox_revoke_flag" style='display:none'>
+                      @("SHARE_Dropboxアクセストークン無効化フラグ|tag")
+                    </div>
+                    @("SHARE_クラウドストレージ選択|tag")
+                  </li>
+                  <li id="SHARE_cloud_setting_1" style='display:none'>
+                    <div id="SHARE_dropbox_edit" style='display:none'>
+                      本共有フォルダーは
+                      <span id="SHARE_dbaccountname">-</span> 
+                      さんのDropboxにアクセス可能です。<br>
+                      本共有フォルダーを別のDropboxアカウントと同期する場合のみ、<br>
+                    </div>
+                    <div id="SHARE_dropbox_ng" style='display:none'>
+                      現在、Dropboxにアクセスできません。<br>
+                      ネットワークの状態を確認してください。<br>
+                      ネットワークに問題がない場合は、<br>
+                    </div>
+                    <div id="SHARE_dropbox_new" style='display:none'>
+                      本共有フォルダーからDropboxへのアクセスを許可する必要があります。<br>
+                    </div>
+                    以下の手順を実行してください。<br>
+                    <ol style="padding-left:2em;">
+                      <li style="list-style-type:decimal;">以下のリンク先にアクセスしてください。<br>
+                                                           <a href="@("Dropbox認証用URL")" target="_brank">@("Dropbox認証用URL") </a></li>
+                      <li style="list-style-type:decimal;">本共有フォルダーと同期させるDropboxアカウントでログインし、<br>
+                                                           nasdsyncのアクセスを許可してください。</li>
+                      <li style="list-style-type:decimal;">表示されたコードを入力してください。<br>
+                                                           @("SHARE_Dropboxコード入力|tag")</li>
+                    </ol>
+                  </li>
+                  <li id="SHARE_cloud_setting_2" style='display:none'>
+                    <!-- <label for="" class="midashi3">フレッツ・あずけ～る ホスト選択</label>-->
+		      <p class="radio_p">
+		      @("SHARE_フレッツホスト|tag")
+		      </p>
+                    <label for="textfield">@{ログインID}</label>@("SHARE_フレッツID|tag")<br>
+                    <label for="textfield">@{パスワード}</label>@("SHARE_フレッツパスワード|tag")<br>
+		    <div id="east_link">
+		     @("SHARE_フレッツ東日本リンク開始|tag")@{フレッツ・あずけ～る東日本}@("リンク終了|tag")
+		    </div> <div id="west_link" style='display:none'>
+		     @("SHARE_フレッツ西日本リンク開始|tag")@{フレッツ・あずけ～る西日本}@("リンク終了|tag")
+		    </div> 
+		    @("SHARE_フレッツホスト_hid|tag")
+                    @("SHARE_フレッツID_hid|tag")
+                    @("SHARE_フレッツパスワード_hid|tag")
+                    @("SHARE_クラウドストレージ選択ID_hid|tag")
+                    @("SHARE_サービス_hid|tag")
+                  </li>
+                  <li id="SHARE_cloud_setting_3" style='display:none'>
+                    <label for="textfield">@{接続機器のPINコード}</label>@("SHARE_RL3SYNC_PINコード|tag")<br>
+                    <label for="textfield">@{ユーザ名}</label>@("SHARE_RL3SYNC_ユーザ名|tag")<br>
+                    <label for="textfield">@{パスワード}</label>@("SHARE_RL3SYNC_パスワード|tag")<br>
+                    <label for="textfield">@{共有フォルダー名}</label>@("SHARE_RL3SYNC_同期先共有名|tag")<br>
+                    @("SHARE_RL3SYNC_PINコード_hid|tag")
+                    @("SHARE_RL3SYNC_ユーザ名_hid|tag")
+                    @("SHARE_RL3SYNC_パスワード_hid|tag")
+                    @("SHARE_RL3SYNC_同期先共有名_hid|tag")
+                  </li>
+                </ul>
+              @("SHARE_サービス_hid|tag") 
+              </div>
+            </div>
+            <!--=== /block ====-->
+            <!--=== block ====-->
+<!--# if(@("SOLIDモデル判定")) { #-->
+            <div class="block" style="display:none;">
+<!--# } else { #-->
+            <div class="block">
+<!--# } #-->
+              <div class="block_innner">
+                <label for="" class="lable1 mb15">@{ごみ箱機能}</label>
+                <p class="radio_p">
+                  @("SHARE_ごみ箱機能|tag")
+                </p>
+              </div>
+            </div>
+            <!--=== /block ====-->
+            <!--=== block ====-->
+            <div class="block">
+              <div class="block_innner">
+                <label for="" class="lable1 mb15">@{詳細アクセス権設定}</label>
+                <p class="radio_p">
+                  @("SHARE_詳細アクセス権設定|tag")
+                </p>
+              </div>
+            </div>
+            <!--=== /block ====-->
+            <div id="SHARE_detail_access_setting" style='display:none'>
+              <h3>ユーザー許可設定</h3>
+              <div class="block_black">
+                <div class="block_innner2">
+                  <label for="" class="lable1 mb5">@{許可したユーザー}</label>
+                  <ul class="check_ul2">
+                    <div id="SHARE_permission_user_area"></div>
+                  </ul>
+                  <label for="" class="lable1 mb5">@{許可しないユーザー}</label>
+                  <ul class="check_ul2">
+                    <div id="SHARE_not_permission_user_area"></div>
+                  </ul>
+                  <div class="btn_box cf">
+                    <p class="fl mr15">
+                      @("SHARE_読み取り追加ボタン|tag")@("SHARE_読み書き追加ボタン|tag")
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!--=== /block ====-->
+          </div>
+          <!-- /Modal内容 -->
+          <div class="modal-footer" id="SHARE_input_button_area">
+            @("修正ボタン|tag")
+            @("SHARE_共有フォルダ登録ボタン|tag")
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!--===================/Modal7 新しいユーザーの登録ダイアログ) ==============================-->
+@("SHARE_全ユーザー欄|tag")
+@("SHARE_追加ユーザー欄|tag")
+@("SHARE_読取追加ユーザー欄|tag")
+@("SHARE_書込追加ユーザー欄|tag")
+  <!--===================Modal30 (Dropbox) ==============================-->
+  <div class="modal fade" id="SHARE_myModal5" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-body">
+          <div id="SHARE_proc_message_area" class="red" style='display:none'>-</div>
+          <div id="SHARE_Enable_Dropbox_Status_area" class="red" style='display;none'>-</div>
+          <div id="SHARE_Flets_Status_area" class="red" style='display:none'>-</div>
+          <div id="SHARE_Enable_Flets_Status_area" class="red" style='display:none'>-</div>
+          <div id="SHARE_RempteCloud_Status_area" class="red" style='display:none'>-</div>
+        </div>
+      </div>
+      <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+  </div>
+  <!-- /.modal -->
+  <!--===================/Modal30 (Dropbox) ==============================-->
+

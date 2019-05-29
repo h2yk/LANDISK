@@ -1,0 +1,123 @@
+#!/usr/bin/php
+<?php
+$filePath = get_included_files();
+chdir(preg_replace('/(.+)[\\\|\/].*$/i', "\\1", $filePath[0]));
+include_once ('../../c4/c4c.class.php');
+include_once (LD_CLASS_PATH . '/raps/raps.class.php');
+class test extends raps_class {
+	function onInit() {
+		# 標準出力フラグ
+		$this->standardOutFlag = true;
+		$result = 0;
+		# xmlを読み込み
+		$xml = "";
+		if (!$xml = $this->getXml()) {
+			$result = 2;
+		}
+		# xml Object
+		$xmlObject = array();
+		if (!$xmlObject = $this->getXmlObject($xml)) {
+			$result = 2;
+		}
+		# xmlタグ配列化
+		$xmlTagArray = $this->xml2arr($xmlObject);
+		# xml構成チェック
+		if (!$this->xmlCompositionCheck($xmlTagArray)) {
+			$result = 2;
+		}
+		$domain = "";
+		$user = "";
+		$pass = "";
+		if ($result === 0) {
+			# 値取得
+			if (isset($xmlTagArray['entrylist']['entry']['users']['user']['@attributes']['domain'])) {
+				$domain = $xmlTagArray['entrylist']['entry']['users']['user']['@attributes']['domain'];
+			}
+			if (isset($xmlTagArray['entrylist']['entry']['users']['user']['name'])) {
+				$user = $xmlTagArray['entrylist']['entry']['users']['user']['name'];
+			}
+			if (isset($xmlTagArray['entrylist']['entry']['users']['user']['passwd'])) {
+				$pass = $xmlTagArray['entrylist']['entry']['users']['user']['passwd'];
+			}
+			if (is_array($domain)) {
+				if (count($domain) > 0 && isset($domain[0])) {
+					$domain = $domain[0];
+				} else {
+					$domain = "";
+				}
+			}
+			if (is_array($user)) {
+				if (count($user) > 0 && isset($user[0])) {
+					$user = $user[0];
+				} else {
+					$user = "";
+				}
+			}
+			if (is_array($pass)) {
+				if (count($pass) > 0 && isset($pass[0])) {
+					$pass = $pass[0];
+				} else {
+					$pass = "";
+				}
+			}
+			if ($domain == "") {
+				if (!@$this->checkProductUser($user)) {
+					$result = 1;
+				}
+				if ($result === 0) {
+					# ログインチェック
+					if (!@$this->checkPassword($user, $pass)) {
+						$result = 1;
+					}
+				}
+			} else {
+				# ドメインユーザのチェック
+				exec("sudo wbinfo -a '" . $domain . "@" . $user . "'%'" . $pass . "'", $result);
+				if ((!preg_match("/password authentication succeeded/", $result[0])) || (!preg_match("/password authentication succeeded/", $result[1]))) {
+					$result = 1;
+				}
+			}
+		}
+		$this->setValue("ログイン結果", $result);
+		$this->setValue("ドメイン", $domain);
+		$this->setValue("ユーザー名", $user);
+		$this->setValue("パスワード", $pass);
+		$this->execView("/raps/fal_users");
+	}
+	# xml構成チェック
+	function xmlCompositionCheck($xml) {
+		$name = "";
+		$password = "";
+		if ($xml) {
+			if (@key($xml) == "entrylist") {
+				if (@key($xml['entrylist']) == "entry") {
+					if (@key($xml['entrylist']['entry']['users']) == "user") {
+						if ($xml['entrylist']['entry']['users']['user']) {
+							foreach ($xml['entrylist']['entry']['users']['user'] as $key => $value) {
+								if ($key == "name") {
+									$name = 1;
+								}
+								if ($key == "passwd") {
+									$password = 1;
+								}
+							}
+							if ($name && $password) {
+								return true;
+							}
+						}
+					}
+				}
+			}
+		}
+		return false;
+	}
+	# ============================================================================== #
+	# ビュー定義
+	# ============================================================================== #
+	function html_fal_users() {
+	}
+}
+new test();
+exit(0);
+?>
+

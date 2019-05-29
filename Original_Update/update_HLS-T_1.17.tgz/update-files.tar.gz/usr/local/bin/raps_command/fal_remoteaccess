@@ -1,0 +1,358 @@
+#!/usr/bin/php
+<?php
+$filePath = get_included_files();
+chdir(preg_replace('/(.+)[\\\|\/].*$/i', "\\1", $filePath[0]));
+include_once ('../../c4/c4c.class.php');
+include_once (LD_CLASS_PATH . '/raps/raps.class.php');
+class action extends raps_class {
+	function onInit() {
+		# 標準出力フラグ
+		$this->standardOutFlag = true;
+		$this->setValue("一覧取得結果", 0);
+		# xmlを読み込み
+		$xml = "";
+		if (!$xml = $this->getXml()) {
+			$this->setValue("一覧取得結果", 2);
+		}
+		# xml Object
+		$xmlObject = array();
+		if (!$xmlObject = $this->getXmlObject($xml)) {
+			$this->setValue("一覧取得結果", 2);
+		}
+		# xmlタグ配列化
+		$xmlTagArray = $this->xml2arr($xmlObject);
+		# xml構成チェック
+		if (!$this->xmlCompositionCheckInfo($xmlTagArray) && !$this->xmlCompositionCheckSharelist($xmlTagArray)) {
+			$this->setValue("一覧取得結果", 2);
+		}
+		if ($this->getValue("一覧取得結果") === 0) {
+			# サーバー情報取得
+			if ($xmlTagArray['entrylist']['entry']['@attributes']['type'] == "getserverinfo") {
+				# ホスト名取得
+				$this->loadConfig("remotelink3");
+				$this->setValue("ホスト名", "rl3-" . $this->getPincode("current"));
+				if ($this->getValue("RL3_利用区分") == 1) {
+					if ($this->getValue("RL3_外部ポート区分") == 1) {
+						$this->setValue("ポート番号1", $this->getValue("RL3_外部ポート番号1"));
+						$this->setValue("ポート番号2", $this->getValue("RL3_外部ポート番号2"));
+					} else {
+						$this->setValue("ポート番号1", $this->getValue("RL3_リモートアクセスポート番号1"));
+						$this->setValue("ポート番号2", $this->getValue("RL3_リモートアクセスポート番号2"));
+					}
+				} else {
+					$this->setValue("一覧取得結果", 1);
+				}
+				# LANDISK製品情報取得
+				$this->getLanDiskInfo();
+				$this->setValue("製品名", $this->value["LANDISK製品情報"]["product_full"]);
+				$this->setValue("シリーズ名", $this->value["LANDISK製品情報"]["model"]);
+				$this->setValue("ファームウェアバージョン", $this->value["LANDISK製品情報"]["version"]);
+				$this->execView("/raps/fal_info");
+				return;
+			}
+			# 共有一覧取得
+			if ($xmlTagArray['entrylist']['entry']['@attributes']['type'] == "getsharelist") {
+				# 値取得
+				$this->setValue("ユーザー名", "");
+				if (isset($xmlTagArray['entrylist']['entry']['remoteaccess']['user']['name'])) {
+					$this->setValue("ユーザー名", $xmlTagArray['entrylist']['entry']['remoteaccess']['user']['name']);
+				}
+				$this->setValue("ドメイン", "");
+				if (isset($xmlTagArray['entrylist']['entry']['remoteaccess']['user']['@attributes']['domain'])) {
+					$this->setValue("ドメイン", $xmlTagArray['entrylist']['entry']['remoteaccess']['user']['@attributes']['domain']);
+				}
+				$this->getsharelist_req();
+				return;
+			}
+		}
+	}
+	# xml構成チェック(サーバー情報取得)
+	function xmlCompositionCheckInfo($xml) {
+		if ($xml['entrylist']['entry']['@attributes']['type'] == "getserverinfo") {
+			return true;
+		}
+		return false;
+	}
+	# xml構成チェック(共有一覧取得)
+	function xmlCompositionCheckSharelist($xml) {
+		if ($xml['entrylist']['entry']['@attributes']['type'] == "getsharelist") {
+			if (@key($xml['entrylist']['entry']['remoteaccess']['user']) == "name" || @key($xml['entrylist']['entry']['remoteaccess']['user']['@attributes']) == "domain") {
+				return true;
+			}
+		}
+		return false;
+	}
+	# USB1/USB2マウントされているか？
+	function usbFileCheck($usbName) {
+		$usbDirectory = "";
+		switch ($usbName) {
+			case "usb1":
+				if ($this->checkUsbMount(1)) {
+					return true;
+				}
+			break;
+			case "usb2":
+				if ($this->checkUsbMount(2)) {
+					return true;
+				}
+			break;
+		}
+		return false;
+	}
+	# 共有一覧
+	function listLoop() {
+		if (!is_array($this->value["共有フォルダ一覧配列"]) or !current($this->value["共有フォルダ一覧配列"])) {
+			return false;
+		}
+		$id = @key($this->value["共有フォルダ一覧配列"]);
+		$this->setValue("共有フォルダ名", $this->value["共有フォルダ一覧配列"][$id]['name']);
+		$read_only = 0;
+		if (isset($this->value["共有フォルダ一覧配列"][$id]['read_only'])) {
+			$read_only = $this->value["共有フォルダ一覧配列"][$id]['read_only'];
+		}
+		$this->setValue("読み取り専用設定", $read_only);
+		next($this->value["共有フォルダ一覧配列"]);
+		return true;
+	}
+	# ============================================================================== #
+	# ビュー定義
+	# ============================================================================== #
+	function getsharelist_req() {
+		if (!$this->getValue("ユーザー名")) {
+			# 一覧取得結果(失敗)
+			$this->setValue("一覧取得結果", 1);
+		}
+		# NAS状態(RAID,マウント,処理中)考慮
+		# RAID崩壊時は一覧取得結果を1とし、共有一覧の取得失敗として返す。
+		$this->loadConfig("hdd");
+		$this->setDefineLdHddDevice();
+		foreach ($this->LD_HDD_DEVICE as $hdd => $dev) {
+			if ($this->value["HDD情報"][$hdd]["状態"] == "crash") {
+				# 一覧取得結果(失敗)
+				$this->setValue("一覧取得結果", 1);
+			}
+		}
+		if ($this->getValue("一覧取得結果") === 0) {
+			# 中間設定ファイル読み込み
+			$this->loadConfig("user");
+			$this->loadConfig("group");
+			$this->loadConfig("microsoft");
+			$this->loadConfig("share");
+			$this->loadConfig("usb");
+			# ユーザ情報の取得
+			$this->setValue("ユーザーID", "");
+			if (is_array($this->getValue("ユーザ情報"))) {
+				foreach ($this->getValue("ユーザ情報") as $userId => $userName) {
+					if ($userName["name"] == $this->getValue("ユーザー名")) {
+						$this->setValue("ユーザーID", $userId);
+						break;
+					}
+				}
+			}
+			#if(!$this->getValue("ユーザーID")){
+			#	# 一覧取得結果(失敗)
+			#	$this->setValue("一覧取得結果",1);
+			#}
+			if ($this->getValue("一覧取得結果") === 0) {
+				# ドメインユーザーの場合
+				$domain = "";
+				if ($this->getValue("MI_参加方法の設定") == "domain_ad" || $this->getValue("MI_参加方法の設定") == "domain_nt") {
+					if ($this->getValue("MI_参加方法の設定") == "domain_ad") {
+						$domain = strtoupper($this->getValue("MI_AD_ドメイン名_BIOS"));
+					} else {
+						$domain = strtoupper($this->getValue("MI_NT_ドメイン名"));
+					}
+				}
+				# グループ情報の取得
+				$groupMember = array();
+				$groupArray = array();
+				if ($domain && $this->getValue("ドメイン")) {
+					$i_uname = $this->getValue("ユーザー名");
+					$i_domain = $this->getValue("ドメイン");
+					# 入力されたドメイン名の大文字小文字をチェックして置換
+					$bigDomain = strtoupper($domain);
+					$accessUserName = str_ireplace($domain, $bigDomain, "$i_domain@$i_uname");
+					# 所属グループのID、ユーザーIDの取得
+					exec("sudo id '" . $accessUserName . "'", $output);
+					$accessUserGroup = explode("groups=", $output[0]);
+					$accessUserGroupList = explode(",", $accessUserGroup[1]);
+					$accessUserGroupPtn = "/^(.*)\((.*)\)$/";
+					foreach ($accessUserGroupList as $g => $gstr) {
+						$gid = preg_replace($accessUserGroupPtn, "\\1", $gstr);
+						$groupArray[$gid] = preg_replace($accessUserGroupPtn, "\\2", $gstr);
+					}
+				} else {
+					if (is_array($this->getValue("グループ情報"))) {
+						foreach ($this->getValue("グループ情報") as $groupId => $groupName) {
+							$groupMember = explode(",", $groupName["userList"]);
+							foreach ($groupMember as $memberId) {
+								if ($memberId == $this->getValue("ユーザーID")) {
+									$groupArray[$groupId] = $groupName["name"];
+								}
+							}
+						}
+					}
+					$accessUserName = $this->getValue("ユーザー名");
+				}
+			}
+		}
+		# 共有フォルダ一覧配列
+		$shareFolderListArray = array();
+		if ($this->value["共有フォルダ情報"] && ($this->getValue("ユーザーID") || $accessUserName) && ($this->getValue("一覧取得結果") === 0)) {
+			while (current($this->value["共有フォルダ情報"])) {
+				# 共有フォルダID取得
+				$id = @key($this->value["共有フォルダ情報"]);
+				$hiddenCheckFlag = "";
+				if (isset($this->value["共有フォルダ情報"][$id]['hidden'])) {
+					if ($this->value["共有フォルダ情報"][$id]['hidden'] == 1) {
+						$hiddenCheckFlag = 1;
+					}
+				}
+				if ($hiddenCheckFlag != 1) {
+					$service = array();
+					if (is_array($this->value["共有フォルダ情報"][$id]["service"])) {
+						$service = array_flip($this->value["共有フォルダ情報"][$id]["service"]);
+					}
+					if (isset($service[5])) {
+						# 詳細アクセス権(読み取り、書き込み)を持ったユーザIDの配列
+						$validUserList = array();
+						if (isset($this->value["共有フォルダ情報"][$id]['user_list'])) {
+							$validUserList = explode(",", $this->value["共有フォルダ情報"][$id]['user_list']);
+						}
+						# 詳細アクセス権(読み取り、書き込み)を持ったグループIDの配列
+						$validGroupList = array();
+						if (isset($this->value["共有フォルダ情報"][$id]['group_list'])) {
+							$validGroupList = explode(",", $this->value["共有フォルダ情報"][$id]['group_list']);
+						}
+						# 書き込み権限を持ったユーザ名の配列
+						$writeUserList = array();
+						if (isset($this->value["共有フォルダ情報"][$id]['write_user'])) {
+							$writeUserList = explode(",", $this->value["共有フォルダ情報"][$id]['write_user']);
+						}
+						# 書き込み権限を持ったグループ名の配列
+						$writeGroupList = array();
+						if (isset($this->value["共有フォルダ情報"][$id]['write_group'])) {
+							$writeGroupList = preg_replace("/^@/", "", explode(",", $this->value["共有フォルダ情報"][$id]['write_group']));
+						}
+						# 読み取り専用権限を持ったユーザ名の配列
+						$readUserList = array();
+						if (isset($this->value["共有フォルダ情報"][$id]['read_user'])) {
+							$readUserList = explode(",", $this->value["共有フォルダ情報"][$id]['read_user']);
+						}
+						# 読み取り専用権限を持ったグループ名の配列
+						$readGroupList = array();
+						if (isset($this->value["共有フォルダ情報"][$id]['read_group'])) {
+							$readGroupList = preg_replace("/^@/", "", explode(",", $this->value["共有フォルダ情報"][$id]['read_group']));
+						}
+						# 詳細アクセス権設定が無効か？(mix = 有効,all = 無効)
+						$userAuthority = "";
+						$groupAuthority = "";
+						if ($this->value["共有フォルダ情報"][$id]['detail_access_setting'] == "mix") {
+							# 詳細アクセス権設定(有効)
+							# ユーザの権限チェック
+							if ($validUserList && ((in_array($this->getValue("ユーザーID"), $validUserList)) || (in_array($accessUserName, $validUserList)))) {
+								# ■Microsoft ネットワーク共有・FTP 共有
+								# ①共有フォルダーの読み取り専用設定
+								# ②詳細アクセス権設定の読み書き設定（グループ・ユーザー）
+								# ③詳細アクセス権設定の読み取り設定（グループ・ユーザー）
+								# ①②③の順で権限が強い
+								# 書き込み権限を持つ方が優先される。
+								# グループに含まれている読み取り専用のユーザでもグループが書き込み権限を持つなら書き込み権限を持つ
+								# 読み取り権限
+								if (in_array($accessUserName, $readUserList)) {
+									$userAuthority = 1;
+								}
+								# 書き込み権限
+								if (in_array($accessUserName, $writeUserList)) {
+									$userAuthority = 2;
+								}
+							}
+							# グループの権限チェック
+							# 複数あるグループに1回でも書き込み権限が与えられていた時、書き込み権限を与える
+							if ($validGroupList && (count($groupArray) > 0) && !$this->getValue("ユーザ優先フラグ")) {
+								foreach ($groupArray as $gId => $gName) {
+									if ((in_array($gId, $validGroupList)) || (in_array($gName, $validGroupList))) {
+										# 読み取り権限
+										if (in_array($gName, $readGroupList)) {
+											$groupAuthority = 1;
+										}
+										# 書き込み権限
+										if (in_array($gName, $writeGroupList)) {
+											$groupAuthority = 2;
+										}
+									}
+								}
+							}
+							# ユーザ単位で権限を与えられているか？
+							if ($userAuthority || $groupAuthority) {
+								# 配列化['name']
+								$shareFolderListArray[$id]['name'] = $this->value["共有フォルダ情報"][$id]['name'];
+								# フォルダ単位で読み取り専用か？
+								if (isset($this->value["共有フォルダ情報"][$id]['read_only'])) {
+									if ($this->value["共有フォルダ情報"][$id]['read_only']) {
+										# 配列化['read_only']
+										$shareFolderListArray[$id]['read_only'] = "true";
+									} else {
+										# ユーザ単位で権限判定
+										if ((($userAuthority == 1) || ($groupAuthority == 1)) && (($userAuthority != 2) && ($groupAuthority != 2))) {
+											# 配列化['read_only']
+											$shareFolderListArray[$id]['read_only'] = "true";
+										}
+									}
+								} else {
+									# ユーザ単位で権限判定
+									if ((($userAuthority == 1) || ($groupAuthority == 1)) && (($userAuthority != 2) && ($groupAuthority != 2))) {
+										# 配列化['read_only']
+										$shareFolderListArray[$id]['read_only'] = "true";
+									}
+								}
+							}
+						} else {
+							# 詳細アクセス権設定(無効)
+							# 配列化['name']
+							$shareFolderListArray[$id]['name'] = $this->value["共有フォルダ情報"][$id]['name'];
+							# フォルダ単位で読み取り専用か？
+							if (isset($this->value["共有フォルダ情報"][$id]['read_only'])) {
+								if ($this->value["共有フォルダ情報"][$id]['read_only']) {
+									# 配列化['read_only']
+									$shareFolderListArray[$id]['read_only'] = "true";
+								}
+							}
+						}
+						# USBの時のみチェック
+						if ($this->value["共有フォルダ情報"][$id]['name'] == "usb1" || $this->value["共有フォルダ情報"][$id]['name'] == "usb2") {
+							if (!$this->usbFileCheck($this->value["共有フォルダ情報"][$id]['name'])) {
+								unset($shareFolderListArray[$id]);
+							}
+						}
+					}
+				}
+				next($this->value["共有フォルダ情報"]);
+			}
+		}
+		$this->setValue("共有フォルダ一覧配列", $shareFolderListArray);
+		$this->execView("/raps/fal_sharelist");
+	}
+	function getPincode($status) {
+		if ($status !== "init" && $status !== "current" && $status !== "new") {
+			$this->setValue("PINコード取得エラー", "");
+			return false;
+		}
+		$output = array();
+		exec("sudo /usr/local/bin/rl3_pincode.sh " . $status, $output, $result);
+		if ($result != 0) {
+			$this->setValue("PINコード取得エラー", $result);
+			return $false;
+		}
+		$pincode = $output[0];
+		return $pincode;
+	}
+	# ============================================================================== #
+	# ビュー定義
+	# ============================================================================== #
+	function html_fal_remoteaccess() {
+	}
+}
+new action();
+exit(0);
+?>

@@ -1,0 +1,161 @@
+#!/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+case "$1" in
+--message_id=ERR_NASDSYNC)
+	MESSAGE="nasdsync:fail"
+	;;
+--message_id=ERR_DROPBOX_SYNC)
+	MESSAGE="dropbox:fail"
+	;;
+--message_id=ERR_DROPBOX_NO_SPACE_ON_SERVER)
+	MESSAGE="dropbox:serverfull"
+	;;
+--message_id=ERR_DROPBOX_NO_SPACE_ON_LOCAL)
+	MESSAGE="dropbox:diskfull"
+	;;
+--message_id=ERR_DROPBOX_SYNC_SKIP)
+	MESSAGE="dropbox:skip"
+	;;
+--message_id=ERR_DROPBOX_FILE_TOO_LARGE)
+	MESSAGE="dropbox:over"
+	;;
+--message_id=ERR_AZUKERU_SYNC)
+	MESSAGE="azukeru:fail"
+	;;
+--message_id=ERR_AZUKERU_NO_SPACE_ON_SERVER)
+	MESSAGE="azukeru:serverfull"
+	;;
+--message_id=ERR_AZUKERU_NO_SPACE_ON_LOCAL)
+	MESSAGE="azukeru:diskfull"
+	;;
+--message_id=ERR_AZUKERU_SYNC_SKIP)
+	MESSAGE="azukeru:skip"
+	;;
+--message_id=ERR_AZUKERU_FILE_TOO_LARGE)
+	MESSAGE="azukeru:over"
+	;;
+--message_id=ERR_RAPS_CLIENT_SYNC)
+	MESSAGE="rapsclient:fail"
+	;;
+--message_id=ERR_RAPS_CLIENT_NO_SPACE_ON_SERVER)
+	MESSAGE="rapsclient:serverfull"
+	;;
+--message_id=ERR_RAPS_CLIENT_NO_SPACE_ON_LOCAL)
+	MESSAGE="rapsclient:diskfull"
+	;;
+--message_id=ERR_RAPS_CLIENT_SYNC_SKIP)
+	MESSAGE="rapsclient:skip"
+	;;
+--message_id=ERR_RAPS_CLIENT_FILE_TOO_LARGE)
+	MESSAGE="rapsclient:over"
+	;;
+--message_id=ERR_RAPS_CLIENT_SHARE_NOT_EXISTS)
+	MESSAGE="rapsclient:sharenotexists"
+	;;
+--message_id=ERR_RAPS_CLIENT_INVALID_FILESYSTEM)
+	MESSAGE="rapsclient:invalidfilesystem"
+	;;
+--message_id=ERR_RAPS_CLIENT_EXCEED_SESSION)
+	MESSAGE="rapsclient:exceedsession"
+	;;
+--message_id=ERR_RAPS_CLIENT_INVALID_IDENTIFIER)
+	MESSAGE="rapsclient:invalididentifier"
+	;;
+--message_id=ERR_RL3_CLIENT_INVALID_PIN)
+	MESSAGE="rl3client:invalidpin"
+	;;
+--message_id=ERR_RL3_CLIENT_SELF_OFF_LINE)
+	MESSAGE="rl3client:selfoffline"
+	;;
+--message_id=ERR_RL3_CLIENT_TARGET_OFF_LINE)
+	MESSAGE="rl3client:targetoffline"
+	;;
+--message_id=ERR_RL3_CLIENT_INVALID_CONDITION)
+	MESSAGE="rl3client:invalidcondition"
+	;;
+--message_id=ERR_RL3_CLIENT_EXCEED_SESSION)
+	MESSAGE="rl3client:exceedsession"
+	;;
+--message_id=ERR_RL3_CLIENT_TIMEOUT)
+	MESSAGE="rl3client:timeout"
+	;;
+
+--message_id=MSG_NARSUS_INTERVAL_NOTIFY)
+	MESSAGE="narsus:notice"
+	;;
+--message_id=ERR_NARSUS_CONNECT)
+	MESSAGE="narsus:failure"
+	;;
+
+--message_id=MSG_RL3_PORT_UPDATE)
+	MESSAGE="rl3:port_forward_success"
+	;;
+--message_id=ERR_RL3_PORT_UPDATE)
+	MESSAGE="rl3:port_forward_failure"
+	;;
+--message_id=MSG_RL3_PINCODE_REGIST)
+	MESSAGE="rl3:pincode_regist_success"
+	;;
+--message_id=ERR_RL3_PINCODE_REGIST)
+	MESSAGE="rl3:pincode_regist_failed"
+	;;
+
+--message_id=MSG_RAPS_REQUEST_AUTH)
+	MESSAGE="raps:request_login"
+	;;
+--message_id=MSG_RAPS_REQUEST_DISCONNECT)
+	MESSAGE="raps:request_logout"
+	;;
+
+--message_id=ERR_DHCP_FAILURE)
+	MESSAGE="dhcp:failure"
+	;;
+--message_id=MSG_DHCP_SUCCESS)
+	MESSAGE="dhcp:success"
+	;;
+
+--message_id=MSG_FIRMWARE_UPDATED)
+	MESSAGE="firmware:start"
+	;;
+--message_id=ERR_FIRMWARE_UPDATE)
+	MESSAGE="firmware:error"
+	;;
+
+--message_id=MSG_PHOTO_IMPORT_START)
+	MESSAGE="photo_import:start"
+	;;
+--message_id=MSG_PHOTO_IMPORT_LOCKED)
+	MESSAGE="photo_import:locked"
+	;;
+--message_id=MSG_PHOTO_IMPORT_UNLOCKED)
+	MESSAGE="photo_import:unlocked"
+	;;
+--message_id=MSG_PHOTO_IMPORT_END)
+	MESSAGE="photo_import:end"
+	;;
+--message_id=ERR_PHOTO_IMPORT_END)
+	MESSAGE="photo_import:end_error"
+	;;
+--message_id=ERR_PHOTO_IMPORT)
+	MESSAGE="photo_import:error"
+	;;
+--message_id=MSG_PHOTO_IMPORT_INIT)
+	MESSAGE="photo_import:init"
+	;;
+
+*)
+	echo "FIXME!!:$0 $*" > /dev/console
+	exit 1
+	;;
+esac
+
+CMD_LOG=/usr/local/bin/logging.php
+if [ ! -f "${CMD_LOG}" ]; then
+	echo "FIXME!!:${CMD_LOG} not found." > /dev/console
+	exit 1
+fi
+echo "LOG:${MESSAGE} $2" > /dev/console
+"${CMD_LOG}" "${MESSAGE}" "$2" || exit 1
+
+exit 0

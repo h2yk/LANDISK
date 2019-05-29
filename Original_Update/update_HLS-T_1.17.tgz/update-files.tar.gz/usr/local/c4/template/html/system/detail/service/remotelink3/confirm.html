@@ -1,0 +1,76 @@
+  <!--=================== myModal_remotelink3_confirm (remotelink3確認画面) ==============================-->
+  <div class="modal fade" id="myModal_remotelink3_confirm" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content"> 
+        <!-- Modalヘッダー -->
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+          <h4 class="modal-title" id="myModalLabel">@{Remote Link3設定内容確認}</h4>
+        </div>
+        <!-- /Modalヘッダー --> 
+        <!-- Modal内容 -->
+        <div class="modal-body">
+          <h4></h4>
+          <div class="block2">
+            <h5>@{Remote Link3 機能}</h5>
+            <p id="rl3_enabled_name" class="settei_naiyou">-</p>
+          </div>
+          
+          <div id="rl3_use_setting_confirm" style="">
+            <div class="block2">
+              <h5>@{ポート番号1}</h5>
+              <p id="rl3_remoteAccess_port1_confirm" class="settei_naiyou">-</p>
+            </div>
+            <h4></h4>
+            <div class="block2">
+              <h5>@{ポート番号2}</h5>
+              <p id="rl3_remoteAccess_port2_confirm" class="settei_naiyou">-</p>
+            </div>
+            <div class="block2">
+              <h5>@{UPnP機能}</h5>
+              <p id="rl3_useupnp_name" class="settei_naiyou">-</p>
+            </div>
+            <div class="block2">
+              <h5>@{外部ポート設定}</h5>
+              <p id="rl3_externalAccess_enabled_name" class="settei_naiyou">-</p>
+            </div>
+            
+            <div id="rl3_externalAccess_setting_confirm" style="">
+              <div class="block2">
+                <h5>@{外部ポート番号1}</h5>
+                <p id="rl3_externalAccess_port1_confirm" class="settei_naiyou">-</p>
+              </div>
+              <div class="block2">
+                <h5>@{外部ポート番号2}</h5>
+                <p id="rl3_externalAccess_port2_confirm" class="settei_naiyou">-</p>
+              </div>
+            </div>
+            
+            <div class="block2">
+              <h5>@{リモートUI}</h5>
+              <p id="rl3_use_remoteUi_name" class="settei_naiyou">-</p>
+            </div>
+            <div class="block2">
+              <h5>@{PINコード変更}</h5>
+              <p id="rl3_change_pincode_name" class="settei_naiyou">-</p>
+            </div>
+            <div class="block2">
+              <h5>@{ユーザー}</h5>
+              <p id="rl3_qrcode_user" class="settei_naiyou">-</p>
+            </div>
+          </div>
+          <div id="rl3_confirm_message_warning">
+              <p class="tac mb5"><img src="<!--#=C4_HOME_URL#-->/img/common/keikoku.png" width="60" height="21" alt="@{警告}"/></p>
+              <p class="red">@{PINコードを変更すると現在のPINコードは使用できなくなります。}</p>
+              <p class="red mb10">@{現在のPINコードを使用している他のユーザも使用できなくなります。}</p>
+          </div>
+          <!-- /Modal内容 -->
+          <div id="rl3_setting_button_area" class="modal-footer">
+            @("RL3_修正するボタン|tag")
+            @("RL3_設定するボタン|tag")
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!--=================== /myModal_remotelink3_confirm (remotelink3確認画面) ==============================-->

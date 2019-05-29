@@ -1,0 +1,87 @@
+  <!--===================Modal6 (共有フォルダー詳細 ディレクトリー名クリックした時) ==============================-->
+  <div class="modal fade" id="SHARE_myModal4" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <!-- Modalヘッダー -->
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+          <h4 class="modal-title" id="myModalLabel">@{共有フォルダー詳細}</h4>
+        </div>
+        <!-- /Modalヘッダー -->
+        <!-- Modal内容 -->
+        <div class="modal-body">
+          <table class="table folder_tb">
+            <tr>
+              <td class="name_td" id="disp_SHARE_share_name1">-</td>
+              <td class="edit_td" id="SHARE_edit_link"></td>
+              <td class="delete_td" id="SHARE_delete_link"></td>
+            </tr>
+          </table>
+          <div class="block_wrap">
+            <div class="block2">
+              <h5>@{フォルダー名}</h5>
+              <p id="disp_SHARE_share_name2" class="settei_naiyou">-</p>
+            </div>
+            <div class="block2">
+              <h5>@{フォルダーコメント}</h5>
+              <p id="disp_SHARE_share_comment" class="settei_naiyou">-</p>
+            </div>
+
+<!--# if(@("SOLIDモデル判定")) { #-->
+            <div class="block2" style="display:none;">
+<!--# } else { #-->
+            <div class="block2">
+<!--# } #-->
+              <h5>@{読み取り専用}</h5>
+              <p id="disp_SHARE_read_only" class="settei_naiyou">-</p>
+            </div>
+
+            <div class="block2">
+              <h5>@{サービス}</h5>
+              <p id="disp_SHARE_service" class="settei_naiyou">-</p>
+              <p id="disp_SHARE_cloud" class="settei_naiyou" style="display:none;"></p>
+	      <p id="disp_SHARE_flets_host" class="settei_naiyou" style="display:none;"></p>
+              <p id="disp_SHARE_flets_id" class="settei_naiyou" style="display:none;"></p>
+              <p id="disp_SHARE_flets_password" class="settei_naiyou" style="display:none;">@{パスワード}:****</p>
+              <p id="disp_SHARE_rl3syncfname" class="settei_naiyou" style="display:none;"></p>
+              <p id="disp_SHARE_rl3syncpincode"  class="settei_naiyou" style="display:none;"></p>
+              <p id="disp_SHARE_rl3syncusername" class="settei_naiyou" style="display:none;"></p>
+              <p id="disp_SHARE_rl3syncpassword" class="settei_naiyou" style="display:none;">@{パスワード}:****</p>
+            </div>
+
+<!--# if(@("SOLIDモデル判定")) { #-->
+            <div class="block2" style="display:none;">
+<!--# } else { #-->
+            <div class="block2">
+<!--# } #-->
+              <h5>@{ごみ箱機能}</h5>
+              <p id="disp_SHARE_trash" class="settei_naiyou">-</p>
+            </div>
+
+            <div class="block2">
+              <h5>@{詳細アクセス権設定}</h5>
+              <p id="disp_SHARE_access" class="settei_naiyou">-</p>
+            </div>
+            <div id="disp_SHARE_access_area" style="display:none;">
+              <h3 class="midashi2">@{ユーザー許可設定}</h3>
+              <h4 class="midashi_border">@{許可したユーザー}</h4>
+              <h5 class="green">@{読み取り}</h5>
+              <ul class="user_ul">
+                <li id="disp_SHARE_read_user">-</li>
+              </ul>
+              <h5 class="mizuiro">@{読み書き}</h5>
+              <ul>
+                <li id="disp_SHARE_write_user">-</li>
+              </ul>
+            </div>
+          </div>
+          <!-- /Modal内容 -->
+          <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-dismiss="modal">@{一覧に戻る}</button>
+            <button type="button" id="" class="btn_ok hide"></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!--===================/Modal6 (共有フォルダー詳細 ディレクトリー名クリックした時) ==============================-->

@@ -1,0 +1,130 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+<meta http-equiv="Cache-Control" content="no-cache" />
+<meta name="viewport" content="width=device-width,user-scalable=no,maximum-scale=1" />
+
+<title>@("LANDISK名|value")</title>
+
+<!--# @execView("/system/detail/js_common") #-->
+<!--# @execView("/system/detail/js_main") #-->
+<script type="text/javascript">
+<!--
+
+function mainPath(){
+	return '<!--#=C4_HOME_URL#-->';
+}
+function check_client_time(s_sec){
+        today = new Date();
+        c_sec = Math.floor(today.getTime() / 1000);
+        if(Math.abs(c_sec - s_sec) >= (15 * 60)){
+                alert("本製品に設定されている時刻が正しくない可能性が有ります。時刻設定よりご確認ください。");
+        }
+}
+
+function maindata() {
+	getValueData();
+	check_client_time(<!--#=time()#-->);
+}
+
+//-->
+</script>
+</head>
+<body onLoad="maindata()">
+@("フォーム開始|tag")
+<!--=========== wrapper =================-->
+
+<div id="wrapper">
+  <!--# @execView("/system/detail/header") #-->
+  <!--=================== contents ==============================-->
+  <!--# @execView("/system/detail/information") #-->
+  <div id="contents" class="cf">
+    <h3 class="system_m3"><span>@{メニュー}</span></h3>
+    <!--============== アコーディオン ==========================================-->
+    <div class="panel-group" id="accordion">
+      <!--# @execView("/system/detail/network/network") #-->
+      <!--# @execView("/system/detail/share/share") #-->
+<!--# if(!@("Twonky除外モデル判定")) { #-->
+      <!--# @execView("/system/detail/service/media/list") #-->
+<!--# } #-->
+<!--# if(!@("SOLIDモデル判定")) { #-->
+      <!--# @execView("/system/detail/service/remotelink3/input") #-->
+      <!--# @execView("/system/detail/manual") #-->
+<!--# } #-->
+    </div>
+    <!--============== /アコーディオン ==========================================-->
+    <!--============== システム ==================-->
+    <!--# @execView("/system/detail/system/system") #-->
+    <!--============== /システム ==================-->
+    <!--# @execView("/system/detail/flogo") #-->
+  </div>
+  <!--=================== /contents ==============================-->
+
+  <!--===================Modal (確認画面) ==============================-->
+  <!--# @execView("/system/detail/network/network/confirm") #-->
+  <!--# @execView("/system/detail/network/microsoft/confirm") #-->
+  <!--# @execView("/system/detail/network/proxy/confirm") #-->
+  <!--# @execView("/system/detail/system/format/confirm") #-->
+  <!--# @execView("/system/detail/system/checkdisk/confirm") #-->
+  <!--# @execView("/system/detail/system/init/confirm") #-->
+  <!--# @execView("/system/detail/system/firmware/download_confirm") #-->
+  <!--# @execView("/system/detail/system/firmware/select_confirm") #-->
+  <!--# @execView("/system/detail/system/shutdown/confirm") #-->
+  <!--===================/Modal (確認画面) ==============================-->
+
+  <!--===================Modal (詳細画面) ==============================-->
+  <!--# @execView("/system/detail/share/share/detail") #-->
+  <!--===================/Modal (詳細画面) ==============================-->
+
+  <!--===================Modal (入力画面) ==============================-->
+  <!--# @execView("/system/detail/share/share/input") #-->
+  <!--# @execView("/system/detail/share/user/input") #-->
+  <!--===================/Modal (入力画面) ==============================-->
+
+<!--# if(!@("Twonky除外モデル判定")) { #-->
+  <!--===================Modal (メディア設定) ==============================-->
+  <!--# @execView("/system/detail/service/media/detail") #-->
+  <!--# @execView("/system/detail/service/media/delete") #-->
+  <!--# @execView("/system/detail/service/media/add") #-->
+  <!--# @execView("/system/detail/service/media/rebuild") #-->
+  <!--# @execView("/system/detail/service/media/twonky") #-->
+  <!--# @execView("/system/detail/service/media/mdns") #-->
+  <!--# @execView("/system/detail/service/media/setting") #-->
+  <!--===================/Modal (メディア設定) ==============================-->
+<!--# } #-->
+
+<!--# if(!@("SOLIDモデル判定")) { #-->
+  <!--===================Modal (RemoteLink3設定) ==============================-->
+  <!--# @execView("/system/detail/service/remotelink3/confirm") #-->
+  <!--===================/Modal (RemoteLink3設定) ==============================-->
+<!--# } #-->
+
+<!--=================== ユーザー削除画面 ==============================-->
+<!--# @execView("/system/detail/share/share/delete") #-->
+<!--# @execView("/system/detail/share/user/delete") #-->
+<!--=================== /ユーザー削除画面 ==============================-->
+
+<!--=================== ドロワーメニュー ==============================-->
+<!--# @execView("/system/detail/status") #-->
+<!--=================== /ドロワーメニュー ==============================-->
+
+<!--=========== /wrapper =================-->
+<script type="text/javascript">
+<!--
+$.unblockUI();
+//-->
+</script>
+@("フォーム終了|tag")
+@("portalフォーム開始|tag")
+@("暗号化MAC|tag")
+@("暗号化PINコード|tag")
+@("暗号化サービスID|tag")
+@("エンコードタイプ|tag")
+@("フォーム終了|tag")
+<iframe style="height:0px;width:0px;visibility:hidden" src="about:blank">
+    this frame prevents back forward cache
+</iframe>
+</body>
+</html>

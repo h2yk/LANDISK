@@ -1,0 +1,24 @@
+<!--===================Modal14 (システム → ファームウェア) ==============================-->
+<div class="modal fade" id="FIRMWARE_myModal1" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <!-- Modalヘッダー -->
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        <h4 class="modal-title" id="myModalLabel">@{ファームウェアをダウンロードしてアップデート}</h4>
+      </div>
+      <!-- /Modalヘッダー -->
+      <!-- Modal内容 -->
+      <div class="modal-body">
+        <p class="tac mb5"><span id="FIRMWARE_download_message" class="red"></span></p>
+        <p class="tac mb5" style="text-align:left">@{本体が再起動します。<br />アップデート完了まで時間がかかりますので、<br />しばらく時間を置いてから再度ログオン画面からアクセスをお願いします。}</p>
+        <p class="tac mb5" id="FIRMWARE_download_disp_file_name"></p>
+      </div>
+      <!-- /Modal内容 -->
+        <div class="modal-footer" id="FIRMWARE_download_button_area">
+          @("修正ボタン|tag")@("FIRMWARE_ダウンロード登録ボタン|tag")
+        </div>
+    </div>
+  </div>
+</div>
+<!--===================/Modal14 (システム → ファームウェア) ==============================-->

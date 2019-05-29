@@ -1,0 +1,60 @@
+#!/bin/sh
+LEDDEV="/dev/led"
+
+__led() {
+	echo "led_$1 $2" > "${LEDDEV}"
+}
+
+__is_led() {
+	cat "${LEDDEV}" | grep "led_$1\s*$2"
+}
+
+case "$1" in
+	is_progress)
+		__is_led power blink || exit 1
+		;;
+	progress)
+		__led power on
+		__led power blink
+		;;
+	clear_progress)
+		__led power on
+		;;
+	is_err)
+		__is_led status blink || exit 1
+		;;
+	err)
+		__led status off
+		__led status blink
+		;;
+	clear_err)
+		__led status off
+		;;
+	is_notify)
+		__is_led update on || exit 1
+		;;
+	notify)
+		__led update on
+		;;
+	clear_notify)
+		__led update off
+		;;
+	is_external_progress)
+		__is_led top blink || exit 1
+		;;
+	external_progress)
+		__led top on
+		__led top blink
+		;;
+	clear_external_progress|external_connected)
+		__led top on
+		;;
+	external_disconnected)
+		__led top off
+		;;
+	*)
+		echo "$0 $*: invalid option" > /dev/console
+		exit 1
+		;;
+esac
+exit 0

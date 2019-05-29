@@ -1,0 +1,28 @@
+<!--===================Modal14 (システム → ファームウェア) ==============================-->
+<div class="modal fade" id="FIRMWARE_myModal2" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <!-- Modalヘッダー -->
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        <h4 class="modal-title" id="myModalLabel">@{ファームウェアを指定してアップデート}</h4>
+      </div>
+      <!-- /Modalヘッダー -->
+      <!-- Modal内容 -->
+      <div class="modal-body">
+        <p class="tac mb5"><span id="FIRMWARE_select_message" class="red"></span></p>
+        <p class="tac mb5" id="FIRMWARE_select_confirm">@{確認中...}</p>
+        <p class="tac mb5" id="FIRMWARE_select_attention" style="display:none">@{本体が再起動します。<br />アップデート完了まで時間がかかりますので、<br />しばらく時間を置いてから再度ログオン画面からアクセスをお願いします。}</p>
+        <p class="tac mb5" id="FIRMWARE_select_disp_file_name"></p>
+      </div>
+      <!-- /Modal内容 -->
+        <div id="FIRMWARE_error_button_area" class="modal-footer" style='display:none'>
+          @("修正ボタン|tag")
+        </div>
+        <div id="FIRMWARE_success_button_area" class="modal-footer" style='display:none'>
+          @("修正ボタン|tag")@("FIRMWARE_指定登録ボタン|tag")
+        </div>
+    </div>
+  </div>
+</div>
+<!--===================/Modal14 (システム → ファームウェア) ==============================-->

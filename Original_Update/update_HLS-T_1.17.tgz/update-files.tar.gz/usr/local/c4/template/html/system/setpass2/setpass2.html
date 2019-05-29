@@ -1,0 +1,65 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+<meta http-equiv="Cache-Control" content="no-cache" />
+<meta name="viewport" content="width=device-width,user-scalable=no,maximum-scale=1" />
+<!--[if lt IE 9]>
+<script src="<!--#=C4_HOME_URL#-->/js/css3-mediaqueries.js"></script>
+<![endif]-->
+<title><!--#=LD_LABEL_NAME#--></title>
+<!--===== css =====-->
+<link rel="stylesheet" type="text/css" href="<!--#=C4_HOME_URL#-->/css/bootstrap.css">
+<link rel="stylesheet" type="text/css" href="<!--#=C4_HOME_URL#-->/css/import.css">
+<link rel="stylesheet" type="text/css" href="<!--#=C4_HOME_URL#-->/css/style.css">
+<!--===== js =====-->
+<script type="text/javascript" src="<!--#=C4_HOME_URL#-->/js/system.js" ></script>
+
+</head>
+
+<body>
+@("フォーム開始|tag")
+  <!--=========== wrapper =================-->
+<div id="wrapper"> 
+  <!--========= header ===============-->
+  <div id="header">
+    <p><span class="lable1 font18 strong"><!--#=LD_LABEL_NAME#--></span></p>
+    <nav id="mobile-bar" class="cf"></nav>
+  </div>
+  <!--========= /header ===============--> 
+  <!--========= contents ===============-->
+  <div id="contents">
+
+    <!--# if(@checkPassword("admin","")) { #-->
+
+    <h2 class="midashi">@{管理者パスワードを設定してください}</h2>
+      @("エラーメッセージ|message|color:#CC3333")
+      <div class="form-group">
+        <label for="" class="lable1 mb5">@{新しいパスワード}</label>
+        @("新パスワード|tag")
+        <div style="height: 5px"> </div>
+        <label for="" class="lable1 mb5">@{新しいパスワード確認用}</label>
+        @("確認パスワード|tag")
+      </div>
+      <div class="submit_box">
+        @("設定リンク開始|tag")<img src="<!--#=C4_HOME_URL#-->/img/common/setting.png" width="125" height="30" alt="@{設定する}"/>@("リンク終了|tag")
+      </div>
+
+    <!--# } else { #-->
+
+      <h2 class="midashi">@{管理者パスワードを設定しました}</h2>
+
+    <!--# } #-->
+  </div>
+  <!--========= /contents ===============--> 
+  
+</div>
+  <!--=========== /wrapper =================-->
+@("デフォルトイベント|tag")
+@("フォーム終了|tag")
+<iframe style="height:0px;width:0px;visibility:hidden" src="about:blank">
+    this frame prevents back forward cache
+</iframe>
+</body>
+</html>
