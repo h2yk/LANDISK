@@ -1,0 +1,252 @@
+#!/usr/bin/env python
+# -*- mode: landisk-python; coding: utf-8; -*-
+# vim:ts=4 sw=4 sts=4 ai si et sta
+from __future__ import with_statement
+
+try:
+    import json
+except ImportError:
+    import simplejson as json
+import sys
+import os
+from dropbox2.client import DropboxClient, InvalidAccessTokenDropboxError
+
+CLIENT_ID = "av49kj4lr28xk65"
+CLIENT_SECRET = "irh68ok5h6hqbar"
+
+CONF_DIR = '/mnt/hda5/conf/dropbox'
+ACCESS_TOKEN_FILENAME = os.path.join(CONF_DIR, 'access_token.json')
+
+INDENT = 4
+
+
+def __get_proxy(url):
+    try:
+        from ionas.request import Request, RequestData, Entry
+        from fal_info import (ReqTypes,
+                              Results,
+                              FAL_PROXY_PATH,
+                              FAL_PROXY_REQ_BASE_XML)
+        SERVERLIST_NAME = "serverlist"
+        SERVER_NAME = "server"
+        HOST_NAME = "host"
+        PORT_NAME = "port"
+        URL_NAME = "url"
+        PROXY_DIRECT = "DIRECT"
+
+        entry = Entry(ReqTypes.QUERY, FAL_PROXY_REQ_BASE_XML[ReqTypes.QUERY])
+        entry.get().get_node(URL_NAME).set_text(url)
+        request_data = RequestData(entry)
+        target = Request(FAL_PROXY_PATH)
+        result_entry = target.request(request_data).get_entrylist().get_entry()
+        if result_entry.get_result() != Results.OK:
+            return ()
+        serverlist = result_entry.get().get_node(SERVERLIST_NAME)
+        for proxy in serverlist.get_node_list(SERVER_NAME):
+            host = proxy.get_node(HOST_NAME).get_text()
+            port = proxy.get_node(PORT_NAME).get_text()
+            if not host or host == PROXY_DIRECT:
+                continue
+            proxy_server = host
+            if port:
+                proxy_server += ':' + port
+            return proxy_server
+        return ""
+    except:
+        return ""
+
+
+if __name__ == '__main__':
+    import optparse
+    op = optparse.OptionParser()
+    op.add_option('--get-authorize-url',
+                  action='store_true',
+                  dest='call_get_authorize_url')
+    op.add_option('--obtain-access-token',
+                  action='store_true',
+                  dest='call_obtain_access_token')
+    op.add_option('--revoke-access-token',
+                  action='store_true',
+                  dest='call_revoke_access_token')
+    op.add_option('--all', action='store_true', dest='o_all')
+    op.add_option('--save-access-token',
+                  action='store_true',
+                  dest='call_save_access_token')
+    op.add_option('--load-access-token',
+                  action='store_true',
+                  dest='call_load_access_token')
+    op.add_option('--obtain-account-name',
+                  action='store_true',
+                  dest='call_obtain_account_name')
+
+    op.add_option('--rename',
+                  action='store_true',
+                  dest='call_rename')
+    op.add_option('--delete',
+                  action='store_true',
+                  dest='call_delete')
+
+
+    (options, args) = op.parse_args()
+
+    exit_code = 0
+
+    dropbox_client = DropboxClient(CLIENT_ID, CLIENT_SECRET)
+    dropbox_client.get_proxy = __get_proxy
+
+    if options.call_get_authorize_url:
+        try:
+            url = dropbox_client.get_authorize_url()
+            sys.stdout.write(url)
+        except:
+            sys.stdout.write('')
+            exit_code = 1
+
+    elif options.call_obtain_access_token:
+        try:
+            code = args[0]
+            access_token = dropbox_client.obtain_access_token(code)
+            sys.stdout.write(access_token)
+        except:
+            sys.stdout.write('')
+            exit_code = 1
+
+    elif options.call_revoke_access_token:
+        try:
+            sharenames = args
+            if os.path.exists(ACCESS_TOKEN_FILENAME):
+                data = {}
+                with open(ACCESS_TOKEN_FILENAME, 'r') as f:
+                    data = json.load(f)
+                revoked_shares = []
+                for sharename, access_token in data.iteritems():
+                    if options.o_all or sharename in sharenames:
+                        dropbox_client.access_token = access_token
+                        try:
+                            dropbox_client.revoke_access_token()
+                        except InvalidAccessTokenDropboxError, e:
+                            pass
+                        revoked_shares.append(sharename)
+                with open(ACCESS_TOKEN_FILENAME, 'r') as f:
+                    data = json.load(f)
+                for sharename in data.keys():
+                    if sharename in revoked_shares:
+                        del data[sharename]
+                dumpdata = json.dumps(data, indent=INDENT)
+                with open(ACCESS_TOKEN_FILENAME, 'w') as f:
+                    f.write(dumpdata)
+            else:
+                exit_code = 1
+            # sharename = args[0]
+            # data = {}
+            # if os.path.exists(ACCESS_TOKEN_FILENAME):
+            #     with open(ACCESS_TOKEN_FILENAME, 'r') as f:
+            #         data = json.load(f)
+            # access_token = data[sharename]
+            # dropbox_client.access_token = access_token
+            # try:
+            #     dropbox_client.revoke_access_token()
+            # except InvalidAccessTokenDropboxError, err:
+            #     pass
+            # del data[sharename]
+            # dumpdata = json.dumps(data, indent=INDENT)
+            # with open(ACCESS_TOKEN_FILENAME, 'w') as f:
+            #     f.write(dumpdata)
+        except:
+            exit_code = 1
+
+    elif options.call_save_access_token:
+        try:
+            (sharename, access_token) = args[:2]
+            data = {}
+            if os.path.exists(ACCESS_TOKEN_FILENAME):
+                with open(ACCESS_TOKEN_FILENAME, 'r') as f:
+                    data = json.load(f)
+            data[sharename] = access_token
+            dumpdata = json.dumps(data, indent=INDENT)
+            with open(ACCESS_TOKEN_FILENAME, 'w') as f:
+                f.write(dumpdata)
+        except:
+            exit_code = 1
+
+    elif options.call_load_access_token:
+        try:
+            sharename = args[0]
+            data = {}
+            if os.path.exists(ACCESS_TOKEN_FILENAME):
+                with open(ACCESS_TOKEN_FILENAME, 'r') as f:
+                    data = json.load(f)
+            access_token = data.get(sharename, '')
+            if not access_token:
+                with open(os.path.join(CONF_DIR, 'share_config'), 'r') as f:
+                    for line in f.readlines():
+                        _sharename = line.strip().split('|')[0]
+                        _oauth1_token = line.strip().split('|')[-2]
+                        _oauth1_token_secret = line.strip().split('|')[-1]
+                        if _sharename == sharename:
+                            access_token = dropbox_client.obtain_oauth2_token_from_oauth1_token(_oauth1_token, _oauth1_token_secret)
+                            if access_token:
+                                data[sharename] = access_token
+                                dumpdata = json.dumps(data, indent=INDENT)
+                                with open(ACCESS_TOKEN_FILENAME, 'w') as f2:
+                                    f2.write(dumpdata)
+                            break
+            if access_token:
+                sys.stdout.write(access_token)
+            else:
+                sys.stdout.write('')
+                exit_code = 1
+        except:
+            sys.stdout.write('')
+            exit_code = 1
+
+    elif options.call_obtain_account_name:
+        try:
+            access_token = args[0]
+            dropbox_client.access_token = access_token
+            account_info = dropbox_client.obtain_account_info()
+            sys.stdout.write(account_info['name']['display_name'].encode('utf-8'))
+        except:
+            sys.stdout.write('')
+            exit_code = 1
+
+    elif options.call_rename:
+        try:
+            (old_name, new_name) = args[:2]
+            data = {}
+            if os.path.exists(ACCESS_TOKEN_FILENAME):
+                with open(ACCESS_TOKEN_FILENAME, 'r') as f:
+                    data = json.load(f)
+                access_token = data[old_name]
+                del data[old_name]
+                if new_name in data:
+                    raise
+                data[new_name] = access_token
+                dumpdata = json.dumps(data, indent=INDENT)
+                with open(ACCESS_TOKEN_FILENAME, 'w') as f:
+                    f.write(dumpdata)
+            else:
+                exit_code = 1
+        except:
+            exit_code = 1
+
+    elif options.call_delete:
+        try:
+            sharename = args[0]
+            data = {}
+            if os.path.exists(ACCESS_TOKEN_FILENAME):
+                with open(ACCESS_TOKEN_FILENAME, 'r') as f:
+                    data = json.load(f)
+                del data[sharename]
+                dumpdata = json.dumps(data, indent=INDENT)
+                with open(ACCESS_TOKEN_FILENAME, 'w') as f:
+                    f.write(dumpdata)
+            else:
+                exit_code = 1
+        except:
+            exit_code = 1
+
+    else:
+        pass
+
+    sys.exit(exit_code)

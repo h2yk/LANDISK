@@ -1,0 +1,146 @@
+#!/usr/bin/env python
+# -*- mode: landisk-python; coding: utf-8; -*-
+# vim:ts=4 sw=4 sts=4 ai si et sta
+
+"""PAL command for finding the Proxy Servers."""
+
+
+import sys
+import re
+from xml.parsers.expat import ExpatError
+
+import iobase.xmldata as xmldata
+import ionas.request as request
+#import ionas.resultcode as resultcode
+OK = "0"
+INVALID_TYPE = "1"
+INVALID_XML = "2"
+INTERNAL_ERROR = "3"
+from iobase.exception import (NotFoundError, InvalidArgError)
+#from ionas.request import (LOAD_TYPE, SAVE_TYPE, QUERY_TYPE)
+LOAD_TYPE = "load"
+SAVE_TYPE = "save"
+QUERY_TYPE = "query"
+
+import commands
+
+PROXY_STR = "PROXY"
+DIRECT_STR = "DIRECT"
+
+PROXY_NAME = "proxy"
+PACFILE_PATH = "pacfile"
+URL_PATH = "url"
+
+SERVER_LIST_NAME = "serverlist"
+SERVER_NAME = "server"
+HOST_NAME = "host"
+PORT_NAME = "port"
+
+TTY_ERROR = 1
+NON_XML_ERROR = 2
+
+RESULT_INVALID_PACFILE = "65536"
+
+
+def get_host_and_port(url):
+    """Return the host and port tuple from url."""
+
+    HOST_IPV4_WITH_PORT_RE = "([^:]*)(: *)([0-9]+) *$"
+    IPV6_WITH_PORT_RE = " *\[ *([0-9a-zA-Z:]*) *\]( *: *)([0-9]+) *$"
+    IPV6_RE = " *\[? *([0-9a-zA-Z:]*) *\]? *$"
+    HOST_IPV4_RE = "([^:]*)$"
+
+    for re_str in (HOST_IPV4_WITH_PORT_RE, IPV6_WITH_PORT_RE,
+                    IPV6_RE, HOST_IPV4_RE):
+
+        match = re.match(re_str, url)
+
+        if match:
+            if len(match.groups()) >= 3:
+                return (match.group(1).strip(), match.group(3).strip())
+
+            return (match.group(1).strip(), "")
+
+    return ("", "")
+
+
+def get_proxy(pacfile, url):
+    """Return the proxy server(host and port pair) list."""
+
+    servers_str = commands.getoutput('/usr/local/bin/pactester -p ' + pacfile + ' -u ' + url)
+    server_list = []
+    for server in servers_str.split(";"):
+        server = server.strip()
+
+        if DIRECT_STR in server:
+            server_list.append((DIRECT_STR, ""))
+            continue
+
+        if server[0:5].upper() != PROXY_STR:
+            continue
+
+        server_list.append(get_host_and_port(server[6:].strip()))
+
+    if not server_list:
+        server_list.append(("", ""))
+
+    return server_list
+
+
+def handle_query_request(entry):
+    """Handle query request and set entry to result."""
+
+    proxy_node = entry.get()
+    if proxy_node.get_node_name() != PROXY_NAME:
+        raise InvalidArgError(proxy_node.get_node_name())
+
+    pacfile = proxy_node.get_node(PACFILE_PATH).get_text()
+    url = proxy_node.get_node(URL_PATH).get_text()
+    server_list_node = xmldata.XmlConfNode(SERVER_LIST_NAME)
+    for server in get_proxy(pacfile, url):
+        server_node = xmldata.XmlConfNode(SERVER_NAME)
+        server_node.append_child(HOST_NAME, server[0])
+        server_node.append_child(PORT_NAME, server[1])
+        server_list_node.append_child(server_node)
+
+    pacfile = proxy_node.append_child(server_list_node)
+    entry.set_result(OK)
+
+
+#
+# Main
+#
+
+if sys.stdin.isatty():
+    sys.stderr.write("Error: stdin is a tty!!\n")
+    sys.exit(TTY_ERROR)
+
+# Redirect stdout to stderr because pacparser output error to stdout
+saved_stdout = sys.stdout
+sys.stdout = sys.stderr
+
+try:
+    request_data = request.RequestData()
+    request_data.load(sys.stdin.read())
+    response_data = request.ResponseData(request_data)
+
+    for entry in response_data.get_entrylist().get_entry_list():
+        try:
+            if entry.get_type() == QUERY_TYPE:
+                handle_query_request(entry)
+                continue
+
+            entry.set_result(INVALID_TYPE)
+
+        except (NotFoundError, InvalidArgError):
+            entry.set_result(INVALID_XML)
+
+        except:
+            entry.set_result(RESULT_INVALID_PACFILE)
+            continue
+
+    saved_stdout.write(str(response_data))
+
+except ExpatError:
+    sys.stderr.write("Error: Non-XML data is passed!!\n")
+    sys.exit(NON_XML_ERROR)

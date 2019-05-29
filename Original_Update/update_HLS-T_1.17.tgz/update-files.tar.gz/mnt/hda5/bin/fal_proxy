@@ -1,0 +1,204 @@
+#!/usr/bin/env python
+# -*- mode: landisk-python; coding: utf-8; -*-
+# vim:ts=4 sw=4 sts=4 ai si et sta
+
+"""FAL command for finding the Proxy Servers."""
+
+
+import sys
+import os
+import urllib
+from xml.parsers.expat import ExpatError
+
+import iobase.xmldata as xmldata
+import ionas.request as request
+#import ionas.resultcode as resultcode
+OK = "0"
+INVALID_TYPE = "1"
+INVALID_XML = "2"
+INTERNAL_ERROR = "3"
+from iobase.exception import (NotFoundError, InvalidArgError)
+#from ionas.request import (LOAD_TYPE, SAVE_TYPE, QUERY_TYPE)
+LOAD_TYPE = "load"
+SAVE_TYPE = "save"
+QUERY_TYPE = "query"
+
+from subprocess import (Popen, PIPE)
+
+PAL_PROXY_REQ_BASE_XML = {"query": "<proxy><pacfile/><url/></proxy>"}
+PAL_PROXY_PATH = '/mnt/hda5/bin/pal_proxy'
+TEMP_DIR = '/var/tmp'
+TEMP_PACFILE = os.path.join(TEMP_DIR, "temp.pac")
+
+MANUAL_NAME = "manual"
+PACFILE_NAME = "pacfile"
+URL_NAME = "url"
+SERVER_LIST_NAME = "serverlist"
+SERVER_NAME = "server"
+HOST_NAME = "host"
+PORT_NAME = "port"
+
+TTY_ERROR = 1
+NON_XML_ERROR = 2
+
+RESULT_NO_PROXY = "65536"
+
+COMMONCONFIG_CMD_ARGS = ['/mnt/hda5/bin/commonconfig.php']
+PROXY_CATEGORY = 'proxy'
+PROXY_ITEM = 'プロキシ設定_利用区分'
+PROXY_VALUE_DISABLE = '0'
+PROXY_VALUE_AUTO = '1'
+PROXY_VALUE_MANUAL = '2'
+HOST_ITEM = 'プロキシ設定_アドレス'
+PORT_ITEM = 'プロキシ設定_ポート番号'
+PACFILE_ITEM = '自動設定スクリプトURL'
+
+FIXME = 'FIXME!!'
+
+def __get_setting(item_name, category=PROXY_CATEGORY, subcategory=''):
+    """Return common setting."""
+
+    args = COMMONCONFIG_CMD_ARGS + ['--item', item_name, category]
+    if subcategory:
+        args += [subcategory]
+    proc = Popen(args, stdout=PIPE)
+    proc.wait()
+
+    setting = proc.stdout.readline().strip()
+
+    return setting
+
+
+def __get_manual_proxy():
+    """Return a proxy server list node which is set by manual."""
+
+    proxy = __get_setting(PROXY_ITEM)
+    if proxy != PROXY_VALUE_MANUAL:
+        raise NotFoundError("Manual proxy")
+
+    manual_host = __get_setting(HOST_ITEM)
+    if not manual_host:
+        raise NotFoundError("Host proxy")
+
+    manual_port = __get_setting(PORT_ITEM)
+    if not manual_port:
+        raise NotFoundError("Port proxy")
+
+    serverlist = xmldata.XmlConfNode(SERVER_LIST_NAME)
+    server = xmldata.XmlConfNode(SERVER_NAME)
+    host = xmldata.XmlConfNode(HOST_NAME)
+    host.set_text(manual_host)
+    server.append_child(host)
+    port = xmldata.XmlConfNode(PORT_NAME)
+    port.set_text(manual_port)
+    server.append_child(port)
+    serverlist.append_child(server)
+    return serverlist
+
+
+def __download_pacfile(pacfile_url):
+    """Download a pac file as "local_path"."""
+
+    try:
+        urllib.urlretrieve(pacfile_url, TEMP_PACFILE)
+        return TEMP_PACFILE
+    except:
+        raise NotFoundError("download pacfile")
+
+
+def __get_proxy_from_pacfile(entry):
+    """Return a proxy server list node got from a pacfile"""
+
+    proxy = __get_setting(PROXY_ITEM)
+    if proxy != PROXY_VALUE_AUTO:
+        raise NotFoundError("Auto proxy")
+
+    pacfile_url = __get_setting(PACFILE_ITEM)
+    if not pacfile_url:
+        raise NotFoundError("pacfile proxy")
+
+    local_pacfile = __download_pacfile(pacfile_url)
+
+    pal_entry = request.Entry(QUERY_TYPE,
+                            PAL_PROXY_REQ_BASE_XML[QUERY_TYPE])
+    pal_entry.get().get_node(PACFILE_NAME).set_text(local_pacfile)
+    pal_entry.get().get_node(URL_NAME).set_text(
+                                    entry.get().get_node(URL_NAME).get_text())
+
+    target = request.Request(PAL_PROXY_PATH)
+    response_data = target.request(request.RequestData(pal_entry))
+
+    try:
+        os.remove(local_pacfile)
+    except:
+        pass
+
+    result_entry = response_data.get_entrylist().get_entry()
+    if result_entry.get_result() != OK:
+        raise NotFoundError("pal_proxy error")
+
+    return result_entry.get().get_node(SERVER_LIST_NAME)
+
+
+def handle_query_request(entry):
+    """Handle query request and set entry to result."""
+
+    try:
+        proxy = __get_setting(PROXY_ITEM)
+        if proxy == PROXY_VALUE_DISABLE:
+            entry.set_result(RESULT_NO_PROXY)
+            return
+
+        try:
+            try:
+                serverlist = __get_manual_proxy()
+            except:
+                serverlist = __get_proxy_from_pacfile(entry)
+        except:
+            entry.set_result(RESULT_NO_PROXY)
+            return
+
+        entry.get().append_child(serverlist)
+        entry.set_result(OK)
+
+    except:
+        entry.set_result(RESULT_NO_PROXY)
+
+
+#
+# Main
+#
+
+if sys.stdin.isatty():
+    sys.stderr.write("Error: stdin is a tty!!\n")
+    sys.exit(TTY_ERROR)
+
+# Redirect stdout to stderr because pacparser output error to stdout
+saved_stdout = sys.stdout
+sys.stdout = sys.stderr
+
+try:
+    request_data = request.RequestData()
+    request_data.load(sys.stdin.read())
+    response_data = request.ResponseData()
+    response_entrylist = response_data.get_entrylist()
+
+    for entry in request_data.get_entrylist().get_entry_list():
+        try:
+            if entry.get_type() == QUERY_TYPE:
+                handle_query_request(entry)
+                response_entrylist.append_entry(entry)
+                continue
+
+            entry.set_result(INVALID_TYPE)
+
+        except (NotFoundError, InvalidArgError):
+            entry.set_result(INVALID_XML)
+
+        response_entrylist.append_entry(entry)
+
+    saved_stdout.write(str(response_data))
+
+except ExpatError:
+    sys.stderr.write("Error: Non-XML data is passed!!\n")
+    sys.exit(NON_XML_ERROR)

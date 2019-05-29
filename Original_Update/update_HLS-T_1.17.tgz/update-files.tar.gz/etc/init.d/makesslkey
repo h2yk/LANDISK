@@ -1,0 +1,74 @@
+#!/bin/sh -x
+
+__make_ssl_root_key() {
+	local TARGET_KEY="$1"
+	local TARGET_KEY_WORKING="${TARGET_KEY}.working"
+	local TARGET_CRT="$2"
+	local TARGET_DER="$3"
+	local SERVER_KEY="$4"
+	local NOT_BEFORE=`openssl x509 -noout -text -in "${TARGET_CRT}" | grep 'Not Before:' | sed 's/.*Not Before: \(.*\)$/\1/g'`
+	local NOT_AFTER=`openssl x509 -noout -text -in "${TARGET_CRT}" | grep 'Not After :' | sed 's/.*Not After : \(.*\)$/\1/g'`
+	local CURRENT_SEC=`date +%s`
+	local NOT_BEFORE_SEC=`date -d "${NOT_BEFORE}" +%s`
+	local NOT_AFTER_SEC=`date -d "${NOT_AFTER}" +%s`
+	[ ${NOT_BEFORE_SEC} -le ${CURRENT_SEC} -a ${CURRENT_SEC} -lt ${NOT_AFTER_SEC} ] || rm -f "${TARGET_KEY}"
+	[ -f "${TARGET_KEY}" ] && return 0
+	rm -f "${SERVER_KEY}"
+	local COUNTRY_NAME='JP'
+	local STATE_OR_PROVINCE_NAME='ISHIKAWA'
+	local LOCALITY_NAME='KANAZAWA'
+	local ORGANIZATION_NAME='I-O DATA DEVICE, INC.'
+	local PRODUCT=`cat /var/lib/model | grep '^product	' | sed 's/^product	\(.*\)$/\1/'`
+	local MACADDR=`ifconfig eth0 | grep 'HWaddr' | sed 's/.*HWaddr ..:..:..:\(..\):\(..\):\(..\).*/\1\2\3/'`
+	local COMMON_NAME="I-O DATA ${PRODUCT} ${MACADDR}"
+	openssl req -new -days 3650 -x509 -newkey rsa:2048 -nodes -out "${TARGET_CRT}" -keyout "${TARGET_KEY_WORKING}" -sha256 \
+		-subj "/C=${COUNTRY_NAME}/ST=${STATE_OR_PROVINCE_NAME}/L=${LOCALITY_NAME}/O=${ORGANIZATION_NAME}/CN=${COMMON_NAME}" \
+		-reqexts v3_req -extensions v3_ca || return 1
+	chmod 400 "${TARGET_KEY_WORKING}" || return 1
+	openssl x509 -inform PEM -outform DER -in "${TARGET_CRT}" -out "${TARGET_DER}" || return 1
+	mv "${TARGET_KEY_WORKING}" "${TARGET_KEY}" || return 1
+	return 0
+}
+
+__make_ssl_server_key() {
+	local TARGET_KEY="$1"
+	local TARGET_KEY_WORKING="${TARGET_KEY}.working"
+	local TARGET_CRT="$2"
+	local TARGET_CSR="$3"
+	local ROOT_KEY="$4"
+	local ROOT_CRT="$5"
+	local NOT_BEFORE=`openssl x509 -noout -text -in "${TARGET_CRT}" | grep 'Not Before:' | sed 's/.*Not Before: \(.*\)$/\1/g'`
+	local NOT_AFTER=`openssl x509 -noout -text -in "${TARGET_CRT}" | grep 'Not After :' | sed 's/.*Not After : \(.*\)$/\1/g'`
+	local CURRENT_SEC=`date +%s`
+	local NOT_BEFORE_SEC=`date -d "${NOT_BEFORE}" +%s`
+	local NOT_AFTER_SEC=`date -d "${NOT_AFTER}" +%s`
+	[ ${NOT_BEFORE_SEC} -le ${CURRENT_SEC} -a ${CURRENT_SEC} -lt ${NOT_AFTER_SEC} ] || rm -f "${TARGET_KEY}"
+	[ -f "${TARGET_KEY}" ] && return 0
+	local COUNTRY_NAME='JP'
+	local STATE_OR_PROVINCE_NAME='ISHIKAWA'
+	local LOCALITY_NAME='KANAZAWA'
+	local ORGANIZATION_NAME='I-O DATA DEVICE, INC.'
+	local COMMON_NAME='localhost'
+	openssl req -new -nodes -in "${ROOT_KEY}" -keyout "${TARGET_KEY_WORKING}" -out "${TARGET_CSR}" \
+		-subj "/C=${COUNTRY_NAME}/ST=${STATE_OR_PROVINCE_NAME}/L=${LOCALITY_NAME}/O=${ORGANIZATION_NAME}/CN=${COMMON_NAME}" \
+		-reqexts v3_req || return 1
+	chmod 400 "${TARGET_KEY_WORKING}" || return 1
+	echo -e "y\ny\n" | openssl ca -md sha256 -days 3650 -keyfile "${ROOT_KEY}" -cert "${ROOT_CRT}" -out "${TARGET_CRT}" -infiles "${TARGET_CSR}" || return 1
+	mv "${TARGET_KEY_WORKING}" "${TARGET_KEY}" || return 1
+	return 0
+}
+
+cd /mnt/hda5/webaccess/
+mkdir -p demoCA/certs
+mkdir -p demoCA/private
+mkdir -p demoCA/crl
+mkdir -p demoCA/newcerts
+echo "01" > demoCA/serial
+rm -f demoCA/index.txt
+touch demoCA/index.txt
+__make_ssl_root_key webaccess.root.key webaccess.root.crt webaccess.root.der webaccess.server.key
+__make_ssl_server_key webaccess.server.key webaccess.server.crt webaccess.server.csr webaccess.root.key webaccess.root.crt
+[ -f webaccess.root.der ] && ln -sf webaccess.root.der webaccess.der
+[ -f webaccess.server.key ] && ln -sf webaccess.server.key webaccess.key
+[ -f webaccess.server.crt ] && ln -sf webaccess.server.crt webaccess.crt
+

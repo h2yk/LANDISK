@@ -1,0 +1,85 @@
+
+#Listen 80
+NameVirtualHost *:80
+<VirtualHost *:80>
+	ServerAdmin webmaster@localhost
+	DocumentRoot /usr/local/public/
+	<Directory />
+		Options FollowSymLinks
+		AllowOverride None
+	</Directory>
+	<Directory /usr/local/public>
+		Options ExecCGI FollowSymLinks MultiViews
+		AllowOverride All
+		Allow from all
+	</Directory>
+
+	Alias /rl3 /usr/local/rl3/www
+	<Directory /usr/local/rl3/www >
+		Options ExecCGI
+		AllowOverride None
+		Allow from all
+	</Directory>
+
+	ErrorLog /dev/null
+	LogLevel warn
+
+	CustomLog /dev/null combined
+	ServerSignature Off
+</VirtualHost>
+
+Listen 127.0.0.1:50000
+NameVirtualHost *:50000
+<VirtualHost *:50000>
+	ServerName localhost
+	ServerAdmin webmaster@localhost
+	DocumentRoot /dev/null
+
+	Alias /rl3/public /usr/local/rl3/www/public
+	<Directory /usr/local/rl3/www/public >
+		Options ExecCGI
+		AllowOverride None
+		Allow from all
+	</Directory>
+
+	ErrorLog /dev/null
+	LogLevel warn
+
+	CustomLog /dev/null combined
+	ServerSignature Off
+</VirtualHost>
+
+Listen 127.0.0.1:50001
+NameVirtualHost *:50001
+<VirtualHost *:50001>
+	ServerName localhost
+	ServerAdmin webmaster@localhost
+	DocumentRoot /dev/null
+
+	Alias /rl3 /usr/local/rl3/www
+	<Directory /usr/local/rl3/www >
+		Options ExecCGI
+		AllowOverride None
+		Allow from all
+	</Directory>
+
+	Alias /remoteui2 /usr/local/public
+	<Directory /usr/local/public >
+		Options ExecCGI FollowSymLinks MultiViews
+		AllowOverride All
+		Allow from all
+		<FilesMatch "^.*\.cgi$">
+			Deny from all
+		</FilesMatch>
+	</Directory>
+
+	ErrorLog /dev/null
+	LogLevel warn
+
+	CustomLog /dev/null combined
+	ServerSignature Off
+
+	SSLEngine on
+	SSLCertificateFile /mnt/hda5/webaccess/webaccess.crt
+	SSLCertificateKeyFile /mnt/hda5/webaccess/webaccess.key
+</VirtualHost>

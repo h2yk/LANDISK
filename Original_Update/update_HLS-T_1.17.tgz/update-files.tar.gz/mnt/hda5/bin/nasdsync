@@ -1,0 +1,1234 @@
+#!/usr/bin/env python
+# -*- mode: landisk-python; coding: utf-8; -*-
+# vim:ts=4 sw=4 sts=4 ai si et sta
+
+"""
+nasdsync : Synchronize directories with Dropbox.
+
+Copyright (C) I-O DATA DEVICE, INC.  All rights reserved.
+"""
+from __future__ import with_statement
+
+try:
+    import json
+except ImportError:
+    import simplejson as json
+
+import socket
+socket.setdefaulttimeout(300)
+
+import os
+import shutil
+import stat
+import sys
+import time
+import locale
+import re
+import fcntl
+import errno
+from optparse import OptionParser
+from subprocess import (Popen, PIPE)
+
+import traceback
+
+try:
+    import email.utils as emailut
+except:
+    import email.Utils as emailut
+
+from dropbox2.client import (DropboxClient,
+                             BaseDropboxError,
+                             BadInputParameterDropboxError,
+                             DisallowedNameDropboxError,
+                             MalformedPathDropboxError,
+                             InsufficientSpaceDropboxError,
+                             NotFoundDropboxError,
+                             ConflictDropboxError,
+                             UnknownDropboxError)
+
+from ionas.request import Request, RequestData, Entry
+from fal_info import (ReqTypes, Results,
+    FAL_PROXY_PATH, FAL_PROXY_REQ_BASE_XML)
+
+from ionas.filesync import sync
+from dropbox_sync import DropboxSync 
+import azukeru
+from azukeru_sync import AzukeruSync
+from rapssync import RAPSSyncMgr, RAPS_CONF_MGR
+
+from nasdsync_util import NASDSYNC_DOWNLOAD_TMP_DIR
+
+from datetime import datetime
+
+DEBUG_OUTPUT = sys.stderr
+
+VERSION = "2.01"
+SHARE_CONFIG_FILE = "share_config"
+SHARE_CONFIG_FILE_V2 = "share_config_v2"
+SHARE_LOCKER_FILE = "share_locker_"
+DROPBOX_SHARE_CONFIG_FILE = "dropbox/" + SHARE_CONFIG_FILE
+DROPBOX_SHARE_CONFIG_FILE_V2 = "dropbox/" + SHARE_CONFIG_FILE_V2
+AZUKERU_SHARE_CONFIG_FILE = "azukeru/" + SHARE_CONFIG_FILE
+AZUKERU_SPLIT = "\t"
+URL_FILE = "/var/tmp/authorize_url"
+WORK_DIR = "/"
+MOUNT_ROOT = "/mnt"
+DEFAULT_SHARE_ROOT = MOUNT_ROOT + "/sataraid1/share"
+CONF_DIR = "/mnt/hda5/conf"
+LOCK_DIR = "/var/lock/landisk"
+LOCK_SUFFIX = ".lock"
+HURRY_SUFFIX = ".hurry"
+PROC_MOUNTS_DIR = "/proc/mounts"
+VALID_FS_LIST = ("ext2", "ext3", "ext4", "xfs")
+MOUNTS_OPT_SPLIT = ","
+RW_OPT = "rw"
+
+EXTERNAL_SHARE_DICT = {"usb1": MOUNT_ROOT + "/usb1",
+                        "usb2": MOUNT_ROOT + "/usb2"}
+
+APP_KEY = "av49kj4lr28xk65"
+APP_SECRET = "irh68ok5h6hqbar"
+ACCESS_TYPE = 'dropbox'
+
+START_DELAY = 30
+SHARE_CHECK_PERIOD = 60
+RETRY_PERIOD = 600
+RECOVER_PERIOD = 10
+RECOVER_CNT = 3
+
+HDL_LOG_CMD_ARGS = ('/usr/local/bin/HDL_log',)
+HDL_LOG_MSG_OPT = '--message_id='
+HDL_NOTIFY_CLEAR_CMD_ARGS = ('/usr/local/bin/HDL_notify_clear',)
+HDL_NOTIFY_CLEAR_MSG_OPT = '--message_id='
+ERR_NASDSYNC = "ERR_NASDSYNC"
+ERR_DROPBOX_SYNC = "ERR_DROPBOX_SYNC"
+ERR_DROPBOX_NO_SPACE_ON_SERVER = "ERR_DROPBOX_NO_SPACE_ON_SERVER"
+ERR_DROPBOX_NO_SPACE_ON_LOCAL = "ERR_DROPBOX_NO_SPACE_ON_LOCAL"
+ERR_AZUKERU_SYNC = "ERR_AZUKERU_SYNC"
+ERR_AZUKERU_NO_SPACE_ON_SERVER = "ERR_AZUKERU_NO_SPACE_ON_SERVER"
+ERR_AZUKERU_NO_SPACE_ON_LOCAL = "ERR_AZUKERU_NO_SPACE_ON_LOCAL"
+
+ERR_URL_STR = "Error"
+
+STATUS_NO_SPACE = 507
+
+TARGET_URL = 'https://%s/' % DropboxClient._endpoint['api']
+PROXY_ENV_NAME = "DROPBOX_PROXY"
+SERVERLIST_NAME = "serverlist"
+SERVER_NAME = "server"
+HOST_NAME = "host"
+PORT_NAME = "port"
+URL_NAME = "url"
+PROXY_DIRECT = "DIRECT"
+
+FIXME = 'FIXME!!'
+
+DEBUG_PATH = "/mnt/hda5/log/nasdsync_debug"
+
+
+def make_tmp_dir():
+    """Make tmp dir for download."""
+
+    try:
+        shutil.rmtree(NASDSYNC_DOWNLOAD_TMP_DIR)
+    except (OSError), err:
+        if err.errno != errno.ENOENT:
+            raise
+    os.mkdir(NASDSYNC_DOWNLOAD_TMP_DIR)
+    os.chmod(NASDSYNC_DOWNLOAD_TMP_DIR,
+        (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO))
+
+
+def for_debug():
+
+    def touch(path):
+        try:
+            with open(path, "a"):
+                pass
+            os.chmod(path, (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO))
+        except:
+            pass
+
+    # 製品上でデーモン動作中でも
+    # nasdsync_debugファイルを権限777で
+    # つくればdebug出力される
+    #touch(DEBUG_PATH)
+
+    sync.set_debug_path(DEBUG_PATH)
+
+
+def __get_proxy(url):
+    """Try to get proxy and return it."""
+
+    entry = Entry(ReqTypes.QUERY, FAL_PROXY_REQ_BASE_XML[ReqTypes.QUERY])
+
+    entry.get().get_node(URL_NAME).set_text(url)
+    request_data = RequestData(entry)
+    target = Request(FAL_PROXY_PATH)
+    result_entry = target.request(request_data).get_entrylist().get_entry()
+    if result_entry.get_result() != Results.OK:
+        return ()
+
+    serverlist = result_entry.get().get_node(SERVERLIST_NAME)
+    for proxy in serverlist.get_node_list(SERVER_NAME):
+        host = proxy.get_node(HOST_NAME).get_text()
+        port = proxy.get_node(PORT_NAME).get_text()
+
+        if not host or host == PROXY_DIRECT:
+            continue
+
+        proxy_server = host
+        if port:
+            proxy_server += ':' + port
+        return proxy_server
+
+    return ""
+
+def is_timeout_err(err):
+    try:
+        if isinstance(err, socket.error):
+
+            if err.args[0] in [
+                    'timed out',
+                    -5,   # No address associated with hostname
+                    101,  # Network is unreachable
+                    113,  # No route to host
+                    504,  # Tunnel connection failed: 504 Gateway Time-out
+                    'Tunnel connection failed: 504 Gateway Time-out',
+                ]:
+                return True
+    
+        elif isinstance(err, socket.sslerror):
+            timeout_args_list = ('The read operation timed out',)
+    
+            if err.args[0] in timeout_args_list:
+                return True
+
+    except:
+        return False
+    return False
+
+
+class Option:
+    """Command option class."""
+
+    def __init__(self, argv=sys.argv[1:]):
+        """Constructor."""
+
+        optparser = OptionParser(version="%prog : Ver. " + str(VERSION),
+                        usage="usage: %prog [options] ...",
+                        description="SHARE: Specify target directory.")
+
+        optparser.add_option("-W", "--wait-setting",
+            action="store_true",
+            dest="wait_setting",
+            help="Wait for saving or clearing setting.")
+
+        optparser.add_option("--save-dropbox-setting",
+            action="store_true",
+            dest="save_dropbox_setting",
+            help="Try saving Dropbox setting.")
+
+        optparser.add_option("--clear-dropbox-setting",
+            action="store_true",
+            dest="clear_dropbox_setting",
+            help="Clear a saved Dropbox setting")
+
+        optparser.add_option("-t", "--test-azukeru-setting",
+            action="store_true",
+            dest="test_azukeru_setting",
+            help="Try testing Azukeru setting.")
+
+        optparser.add_option("-a", "--save-azukeru-setting",
+            action="store_true",
+            dest="save_azukeru_setting",
+            help="Try saving Azukeru setting.")
+
+        optparser.add_option("-c", "--clear-azukeru-setting",
+            action="store_true",
+            dest="clear_azukeru_setting",
+            help="Clear a saved Azukeru setting.")
+
+        optparser.add_option("--test-raps-setting",
+            action="store_true",
+            dest="test_raps_setting",
+            help="Try testing RAPS setting.")
+
+        optparser.add_option("", "--save-raps-setting",
+            action="store_true",
+            dest="save_raps_setting",
+            help="Try saving RAPS setting.")
+
+        optparser.add_option("", "--clear-raps-setting",
+            action="store_true",
+            dest="clear_raps_setting",
+            help="Clear a saved RAPS setting.")
+
+        optparser.add_option("-D", "--daemon",
+            action="store",
+            dest="pid_file",
+            help="Save a PID and start the periodical synchronization.")
+
+        optparser.add_option("-d", "--debug",
+            action="store_true",
+            dest="debug",
+            help="Output debug information or trace data.")
+
+        optparser.add_option("-o", "--debug-output",
+            action="store",
+            dest="debug_output_file",
+            help="Debug information or trace data redirect to DEBUG_OUTPUT_FILE.")
+
+        optparser.add_option("-s", "--share",
+            action="store",
+            dest="share",
+            help="Specify share name for saving setting.")
+
+        optparser.add_option("", "--dst-share",
+            action="store",
+            dest="dst_share",
+            help="Specify destination share name for saving setting.")
+
+        optparser.add_option("--enable",
+            action="store_true",
+            dest="enable",
+            help="Specify enable for saving setting.")
+
+        optparser.add_option("--disable",
+            action="store_true",
+            dest="disable",
+            help="Specify disable for saving setting.")
+
+        optparser.add_option("--access-token",
+            action="store",
+            dest="access_token",
+            help="Specify access_token for saving setting.")
+
+        optparser.add_option("--keep-access-token",
+            action="store_true",
+            dest="keep_access_token",
+            help="Specify keep_access_token for clearing setting.")
+
+        optparser.add_option("-l", "--login-id",
+            action="store",
+            dest="login_id",
+            help="Specify password for testing or saving setting.")
+
+        optparser.add_option("-p", "--password",
+            action="store",
+            dest="password",
+            help="Specify password for testing or saving setting.")
+
+        optparser.add_option("", "--no-ssl",
+            action="store_false",
+            dest="ssl",
+            help="Specify no ssl.")
+
+        optparser.add_option("", "--host",
+            action="store",
+            dest="host",
+            help="Specify host.")
+
+        optparser.add_option("", "--port",
+            action="store",
+            dest="port",
+            help="Specify port.")
+
+        optparser.add_option("", "--pin",
+            action="store",
+            dest="pin",
+            help="Specify pin conde.")
+
+        optparser.set_defaults(
+                    id='',
+                    clear=False,
+                    pid_file='',
+                    debug=False,
+                    share='',
+                    dst_share='',
+                    login_id='',
+                    password='',
+                    ssl=True,
+                    host='',
+                    port='',
+                    pin='')
+
+        (self.opts, self.share_list) = optparser.parse_args(argv)
+
+
+class ShareConfig:
+    """Class for the share configuration file of HDLcommand."""
+
+    def __init__(self, conf_file, split = "|"):
+        """Constructor."""
+
+        self.conf_path = os.path.join(CONF_DIR, conf_file)
+        self.lock_path = os.path.join(LOCK_DIR, SHARE_CONFIG_FILE) + LOCK_SUFFIX
+        self.lock_file = None
+        self.config = {}
+
+        self.LINE_SPLIT = split
+        # Dropbox
+        self.ACCESS_TOKEN_IDX = 0
+        self.ENABLE_IDX = 1
+        # Azukeru
+        self.LOGIN_ID_IDX = 0
+        self.PASSWORD_IDX = 1
+        self.HOST_IDX = 2
+
+    def lock(self):
+        """Lock a lock file."""
+
+        if not self.lock_file:
+            self.lock_file = open(self.lock_path, "w")
+            fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_EX)
+
+    def unlock(self):
+        """Unlock a lock file."""
+
+        if self.lock_file:
+            self.lock_file.close()
+            self.lock_file = None
+
+    def load(self):
+        """Load configuration from a file."""
+
+        self.config = {}
+        try:
+            conf_file = open(self.conf_path, "r")
+            for line in conf_file:
+                try:
+                    line = line.strip()
+                    list = line.split(self.LINE_SPLIT)
+                    share = list.pop(0)
+                    self.config[share] = list
+                except:
+                    if opt.opts.debug:
+                        traceback.print_exc(file=DEBUG_OUTPUT)
+                    pass
+
+            conf_file.close()
+        except:
+            if opt.opts.debug:
+                traceback.print_exc(file=DEBUG_OUTPUT)
+            pass
+
+    def save(self):
+        """Save configuration to a file."""
+
+        conf_file = open(self.conf_path, "w")
+        try:
+            for share in self.config:
+                save_list = [share]
+                save_list += self.config[share]
+
+                conf_file.write(self.LINE_SPLIT.join(save_list) + "\n")
+
+        except:
+            if opt.opts.debug:
+                traceback.print_exc(file=DEBUG_OUTPUT)
+            conf_file.close()
+
+    def get_target_list(self):
+        """Return target share folder list. """
+
+        if not len(self.config):
+            self.load()
+
+        return self.config.keys()
+
+    # Dropbox
+    def get_access_token(self, share):
+        """Return the tuple key and secret pair for share."""
+
+        if not len(self.config):
+            self.load()
+
+        return (self.config[share][self.ACCESS_TOKEN_IDX],
+                self.config[share][self.ENABLE_IDX])
+
+    def set_access_token(self, share, access_token, enable = "1"):
+        """Set the access_token for share."""
+
+        if not len(self.config):
+            self.load()
+
+        self.config[share] = [access_token, enable]
+
+    def enable_access_token(self, share, enable):
+        """Set the access_token for share."""
+
+        if not len(self.config):
+            self.load()
+
+        self.config[share][self.ENABLE_IDX] = enable
+
+    def clear_access_token(self, share):
+        """Clear the id, key and secret for share."""
+
+        if not len(self.config):
+            self.load()
+
+        del self.config[share]
+
+    # Azukeru
+    def get_azukeru_setting(self, share):
+        """Return the tuple login id and password for share."""
+
+        if not len(self.config):
+            self.load()
+
+        # host指定のない
+        # Azukeru設定ファイルへの過去互換処理
+        try:
+            host = self.config[share][self.HOST_IDX]
+        except IndexError:
+            host = ""
+
+        return (self.config[share][self.LOGIN_ID_IDX],
+                self.config[share][self.PASSWORD_IDX],
+                host)
+
+    def set_azukeru_setting(self, share, login_id, password, host):
+        """Set the login id and password for share."""
+
+        if not len(self.config):
+            self.load()
+
+        self.config[share] = [login_id, password, host]
+
+    def clear_azukeru_setting(self, share):
+        """Clear Azukeru setting for share."""
+
+        if not len(self.config):
+            self.load()
+
+        del self.config[share]
+
+class Proxy:
+    """Class for handling proxy."""
+
+    def __init__(self, get_proxy_func):
+        self.get_proxy_func = get_proxy_func
+        self.proxy_map = {}
+
+    def __call__(self, url):
+        """Try to get proxy and return it."""
+
+        if url not in self.proxy_map:
+            self.proxy_map[url] = self.get_proxy_func(url)
+
+        return self.proxy_map[url]
+
+    def clear(self):
+        """Claer proxy_map."""
+
+        self.proxy_map = {}
+
+
+class ShareLocker:
+
+    def __init__(self, share):
+        self.lock_file = None
+        self.lock_path = os.path.join(LOCK_DIR, SHARE_LOCKER_FILE) + share + LOCK_SUFFIX
+        self.hurry_path = os.path.join(LOCK_DIR, SHARE_LOCKER_FILE) + share + HURRY_SUFFIX
+
+    def hurry(self):
+        if not self.ishurried():
+            os.mkdir(self.hurry_path)
+
+    def ishurried(self):
+        return os.path.exists(self.hurry_path)
+
+    def lock(self):
+        if not self.lock_file:
+            self.lock_file = open(self.lock_path, "w")
+            while True:
+                try:
+                    fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_EX|fcntl.LOCK_NB)
+                except:
+                    self.hurry()
+                else:
+                    break
+
+    def unlock(self):
+        if os.path.exists(self.hurry_path):
+            try:
+                os.rmdir(self.hurry_path)
+            except:
+                pass
+        if self.lock_file:
+            self.lock_file.close()
+            self.lock_file = None
+        if os.path.exists(self.lock_path):
+            try:
+                os.remove(self.lock_path)
+            except:
+                pass
+
+    def __del__(self):
+        self.unlock()
+
+def _debug(message):
+    """debug out message."""
+    f = open("/dev/console", "w")
+    f.write(message)
+    f.close()
+
+
+def _save_text(text, file_name):
+    """Save text to "file_name" file."""
+
+    temp_name = file_name + "." + str(os.getpid())
+    temp_file = open(temp_name, "w")
+    temp_file.write(text)
+    temp_file.close()
+    shutil.move(temp_name, file_name)
+
+
+def __is_rw_opt_set(options):
+    """Check if rw option is set."""
+
+    for opt in options.split(MOUNTS_OPT_SPLIT):
+        if opt == RW_OPT:
+            return True
+    return False
+
+
+def __is_mount_point_available(mount_point):
+    """Check if mount_point is available."""
+
+    mount_re = re.compile("[^ ]+ " + mount_point + " ([^ ]+) ([^ ]+).*")
+    for line in open(PROC_MOUNTS_DIR):
+        match = mount_re.match(line)
+        if not match:
+            continue
+
+        if not match.group(1) in VALID_FS_LIST:
+            return False
+
+        return __is_rw_opt_set(match.group(2))
+
+    return False
+
+def convert_dropbox_access_token(sharename):
+    command = ['/mnt/hda5/bin/dropbox_access_token_manager_for_nasdsync', '--load-access-token', sharename]
+    process = Popen(command, stdout=PIPE)
+    output, error = process.communicate()
+    if process.returncode != 0:
+        raise
+    return output.strip()
+
+def save_dropbox_access_token(sharename, access_token):
+    command = ['/mnt/hda5/bin/dropbox_access_token_manager_for_nasdsync', '--save-access-token', sharename, access_token]
+    process = Popen(command, stdout=PIPE)
+    output, error = process.communicate()
+    return process.returncode
+
+def revoke_dropbox_access_token(sharename):
+    command = ['/mnt/hda5/bin/dropbox_access_token_manager_for_nasdsync', '--revoke-access-token', sharename]
+    process = Popen(command, stdout=PIPE)
+    output, error = process.communicate()
+    return process.returncode
+
+def delete_dropbox_access_token(sharename):
+    command = ['/mnt/hda5/bin/dropbox_access_token_manager_for_nasdsync', '--delete', sharename]
+    process = Popen(command, stdout=PIPE)
+    output, error = process.communicate()
+    return process.returncode
+
+def save_dropbox_setting(share, access_token, lock = True):
+    """Try saving access token."""
+
+    if lock:
+        locker = ShareLocker(share)
+        locker.lock()
+
+    if save_dropbox_access_token(share, access_token) != 0:
+        raise
+
+    share_config = ShareConfig(DROPBOX_SHARE_CONFIG_FILE_V2)
+    share_config.lock()
+    share_config.set_access_token(share, access_token, "1")
+    share_config.save()
+    share_config.unlock()
+
+    share_config = ShareConfig(DROPBOX_SHARE_CONFIG_FILE)
+    share_config.lock()
+    try:
+        share_config.clear_access_token(share)
+        share_config.save()
+    except:
+        if opt.opts.debug:
+            traceback.print_exc(file=DEBUG_OUTPUT)
+        pass
+    share_config.unlock()
+    return
+
+def convert_dropbox_share_config(enable_log_event=False):
+    """Try converting dropbox setting."""
+
+    share_config = ShareConfig(DROPBOX_SHARE_CONFIG_FILE)
+    share_config.lock()
+    share_config.load()
+    share_config.unlock()
+    target_share_list = get_target_share_list(opt,
+                            share_config.get_target_list())
+
+    for share in target_share_list:
+        share_base = os.path.basename(share)
+        try:
+            access_token = convert_dropbox_access_token(share_base)
+        except:
+            if opt.opts.debug:
+                traceback.print_exc(file=DEBUG_OUTPUT)
+            access_token = None
+        if not access_token:
+            if enable_log_event:
+                log_event(ERR_DROPBOX_SYNC, (share_base, 'Could not convert access token.'))
+            print >> DEBUG_OUTPUT, 'Could not convert access token:' + share_base
+            continue
+        print >> DEBUG_OUTPUT, 'access_token:' + str(access_token)
+        save_dropbox_setting(share_base, access_token, False)
+
+def enable_dropbox_setting(share, enable):
+    """Try enabling dropbox setting."""
+
+    locker = ShareLocker(share)
+    locker.lock()
+
+    share_config = ShareConfig(DROPBOX_SHARE_CONFIG_FILE_V2)
+    share_config.lock()
+    if enable:
+        share_config.enable_access_token(share, "1")
+    else:
+        share_config.enable_access_token(share, "0")
+    share_config.save()
+    share_config.unlock()
+    return
+
+def test_azukeru_setting(login_id, password, host):
+    """Try testing azukeru setting."""
+
+    proxy_manager = Proxy(__get_proxy)
+    asession = azukeru.AzukeruSession()
+    asession.set_auth(login_id, password)
+    asession.set_endpoint(host)
+    asession.get_proxy = proxy_manager
+    aclient = azukeru.AzukeruClient(asession)
+    aclient.login()
+    aclient.logout()
+    return
+
+def save_azukeru_setting(login_id, password, share, host):
+    """Try saving azukeru setting."""
+
+    locker = ShareLocker(share)
+    locker.lock()
+
+    share_config = ShareConfig(AZUKERU_SHARE_CONFIG_FILE, AZUKERU_SPLIT)
+    share_config.lock()
+    share_config.set_azukeru_setting(share, login_id, password, host)
+    share_config.save()
+    share_config.unlock()
+    return
+
+def clear_dropbox_setting(share, revoke_access_token = True):
+    """Clear a saved dropbox setting."""
+
+    locker = ShareLocker(share)
+    locker.lock()
+
+    if revoke_access_token:
+        if revoke_dropbox_access_token(share) != 0:
+            raise
+    else:
+        if delete_dropbox_access_token(share) != 0:
+            raise
+
+    share_config = ShareConfig(DROPBOX_SHARE_CONFIG_FILE_V2)
+    share_config.lock()
+    share_config.clear_access_token(share)
+    share_config.save()
+    share_config.unlock()
+
+    share_config = ShareConfig(DROPBOX_SHARE_CONFIG_FILE)
+    share_config.lock()
+    try:
+        share_config.clear_access_token(share)
+        share_config.save()
+    except:
+        if opt.opts.debug:
+            traceback.print_exc(file=DEBUG_OUTPUT)
+        pass
+    share_config.unlock()
+
+    return
+
+def clear_azukeru_setting(share):
+    """Clear a saved Azukeru setting."""
+
+    locker = ShareLocker(share)
+    locker.lock()
+
+    share_config = ShareConfig(AZUKERU_SHARE_CONFIG_FILE, AZUKERU_SPLIT)
+    share_config.lock()
+    try:
+        share_config.clear_azukeru_setting(share)
+        share_config.save()
+    except:
+        if opt.opts.debug:
+            traceback.print_exc(file=DEBUG_OUTPUT)
+        pass
+
+def wait_setting(share):
+    """Wait for saveing or clearing setting."""
+
+    locker = ShareLocker(share)
+    locker.lock()
+
+def get_target_share_list(opt, share_list):
+    """Return a current target share list."""
+
+    if not opt.share_list:
+        return share_list
+
+    target_share_list = []
+    for share in opt.share_list:
+        if share in share_list:
+            target_share_list.append(share)
+        else:
+            if opt.opts.debug:
+                DEBUG_OUTPUT.write("Share " + share + " invalid - skip!!\n")
+
+    return target_share_list
+
+
+def is_share_available(share, share_abs_path):
+    """Check if local share folder is available."""
+
+    if not os.path.isdir(share_abs_path):
+        return False
+
+    if share in EXTERNAL_SHARE_DICT:
+        return __is_mount_point_available(share_abs_path)
+    return True
+
+
+def clear_notify():
+    """Clear notify message for Dropbox."""
+
+    cmd_args = list(HDL_NOTIFY_CLEAR_CMD_ARGS)
+    cmd_args += [HDL_NOTIFY_CLEAR_MSG_OPT + ERR_DROPBOX_SYNC]
+    proc = Popen(cmd_args)
+    proc.wait()
+
+def clear_azukeru_notify():
+    """Clear notify message for Azukeru."""
+
+    cmd_args = list(HDL_NOTIFY_CLEAR_CMD_ARGS)
+    cmd_args += [HDL_NOTIFY_CLEAR_MSG_OPT + ERR_AZUKERU_SYNC]
+    proc = Popen(cmd_args)
+    proc.wait()
+
+
+def log_event(event, args=()):
+    """Log a HDL-XR event."""
+
+    cmd_args = list(HDL_LOG_CMD_ARGS)
+    cmd_args += [HDL_LOG_MSG_OPT + event]
+    cmd_args += args
+    proc = Popen(cmd_args)
+    proc.wait()
+
+
+#
+# Main
+#
+if os.path.exists("/etc/beta"):
+    _debug(str(sys.argv) + "\n")
+os.chdir(WORK_DIR)
+
+opt = Option()
+if opt.opts.debug_output_file:
+    DEBUG_OUTPUT = open(opt.opts.debug_output_file,"a+",0)
+
+RAPS_CONF_MGR.opt_handle(opt.opts)
+
+if opt.opts.wait_setting:
+    if not opt.opts.share:
+        DEBUG_OUTPUT.write("Error: SHARE must be specified!!\n")
+        sys.exit(1)
+
+    try:
+        wait_setting(opt.opts.share)
+    except:
+        if opt.opts.debug:
+            traceback.print_exc(file=DEBUG_OUTPUT)
+        if opt.opts.debug:
+            raise
+        sys.exit(2)
+
+    sys.exit(0)
+
+if opt.opts.save_dropbox_setting:
+    if not opt.opts.access_token and not opt.opts.enable and not opt.opts.disable:
+        DEBUG_OUTPUT.write("Error: ACCESS_TOKEN or enable/disable option must be specified!!\n")
+        sys.exit(1)
+
+    if not opt.opts.share:
+        DEBUG_OUTPUT.write("Error: SHARE must be specified!!\n")
+        sys.exit(1)
+
+    try:
+        convert_dropbox_share_config()
+        if opt.opts.access_token:
+            save_dropbox_setting(opt.opts.share, opt.opts.access_token)
+        elif opt.opts.disable:
+            enable_dropbox_setting(opt.opts.share, False)
+        elif opt.opts.enable:
+            enable_dropbox_setting(opt.opts.share, True)
+    except:
+        if opt.opts.debug:
+            traceback.print_exc(file=DEBUG_OUTPUT)
+        if opt.opts.debug:
+            raise
+        sys.exit(2)
+
+    sys.exit(0)
+
+if opt.opts.save_azukeru_setting:
+    if not opt.opts.login_id:
+        DEBUG_OUTPUT.write("Error: LOGIN_ID must be specified!!\n")
+        sys.exit(1)
+
+    if not opt.opts.password:
+        DEBUG_OUTPUT.write("Error: PASSWORD must be specified!!\n")
+        sys.exit(1)
+
+    if not opt.opts.share:
+        DEBUG_OUTPUT.write("Error: SHARE must be specified!!\n")
+        sys.exit(1)
+
+    try:
+        save_azukeru_setting(opt.opts.login_id, opt.opts.password, opt.opts.share, opt.opts.host)
+    except:
+        if opt.opts.debug:
+            traceback.print_exc(file=DEBUG_OUTPUT)
+        if opt.opts.debug:
+            raise
+        sys.exit(2)
+
+    sys.exit(0)
+
+if opt.opts.clear_dropbox_setting:
+    if not opt.opts.share:
+        DEBUG_OUTPUT.write("Error: SHARE must be specified!!\n")
+        sys.exit(1)
+
+    revoke_access_token = True
+    if opt.opts.keep_access_token:
+        revoke_access_token = False
+    try:
+        clear_dropbox_setting(opt.opts.share, revoke_access_token)
+    except:
+        if opt.opts.debug:
+            traceback.print_exc(file=DEBUG_OUTPUT)
+        if opt.opts.debug:
+            raise
+        sys.exit(2)
+
+    sys.exit(0)
+
+if opt.opts.clear_azukeru_setting:
+    if not opt.opts.share:
+        DEBUG_OUTPUT.write("Error: SHARE must be specified!!\n")
+        sys.exit(1)
+
+    try:
+        clear_azukeru_setting(opt.opts.share)
+    except:
+        if opt.opts.debug:
+            traceback.print_exc(file=DEBUG_OUTPUT)
+        if opt.opts.debug:
+            raise
+        sys.exit(2)
+
+    sys.exit(0)
+
+if opt.opts.test_azukeru_setting:
+    if not opt.opts.login_id:
+        DEBUG_OUTPUT.write("Error: LOGIN_ID must be specified!!\n")
+        sys.exit(1)
+
+    if not opt.opts.password:
+        DEBUG_OUTPUT.write("Error: PASSWORD must be specified!!\n")
+        sys.exit(1)
+
+    try:
+        socket.setdefaulttimeout(30)
+        test_azukeru_setting(opt.opts.login_id, opt.opts.password, opt.opts.host)
+    except azukeru.LoginError, err:
+        sys.exit(3)
+    except:
+        if opt.opts.debug:
+            traceback.print_exc(file=DEBUG_OUTPUT)
+        if opt.opts.debug:
+            raise
+        sys.exit(2)
+
+    sys.exit(0)
+
+if opt.opts.test_raps_setting:
+    if not opt.opts.pin:
+        DEBUG_OUTPUT.write("Error: PIN must be specified!!\n")
+        sys.exit(1)
+
+    if not opt.opts.login_id:
+        DEBUG_OUTPUT.write("Error: LOGIN_ID must be specified!!\n")
+        sys.exit(1)
+
+    if not opt.opts.password:
+        DEBUG_OUTPUT.write("Error: PASSWORD must be specified!!\n")
+        sys.exit(1)
+
+    if not opt.opts.dst_share:
+        DEBUG_OUTPUT.write("Error: DST_SHARE must be specified!!\n")
+        sys.exit(1)
+
+if opt.opts.save_raps_setting:
+    if not opt.opts.pin:
+        DEBUG_OUTPUT.write("Error: PIN must be specified!!\n")
+        sys.exit(1)
+
+    if not opt.opts.login_id:
+        DEBUG_OUTPUT.write("Error: LOGIN_ID must be specified!!\n")
+        sys.exit(1)
+
+    if not opt.opts.password:
+        DEBUG_OUTPUT.write("Error: PASSWORD must be specified!!\n")
+        sys.exit(1)
+
+    if not opt.opts.dst_share:
+        DEBUG_OUTPUT.write("Error: DST_SHARE must be specified!!\n")
+        sys.exit(1)
+
+    if not opt.opts.share:
+        DEBUG_OUTPUT.write("Error: SHARE must be specified!!\n")
+        sys.exit(1)
+
+if opt.opts.clear_raps_setting:
+    if not opt.opts.share:
+        DEBUG_OUTPUT.write("Error: SHARE must be specified!!\n")
+        sys.exit(1)
+
+if opt.opts.pid_file:
+    try:
+        open(opt.opts.pid_file, "w").write(str(os.getpid()))
+    except:
+        if opt.opts.debug:
+            traceback.print_exc(file=DEBUG_OUTPUT)
+        sys.exit(3)
+
+try:
+    if not opt.opts.debug:
+        time.sleep(START_DELAY)
+
+    make_tmp_dir()
+
+    for_debug()
+
+    proxy_manager = Proxy(__get_proxy)
+
+    # RAPS
+    raps_sync_mgr = RAPSSyncMgr()
+
+    dsync_dict = {}
+
+    # Dropbox
+    enable_log_event = True
+    convert_dropbox_share_config(enable_log_event)
+
+    share_config = ShareConfig(DROPBOX_SHARE_CONFIG_FILE_V2)
+    share_config.lock()
+    share_config.load()
+    share_config.unlock()
+    target_share_list = get_target_share_list(opt,
+                            share_config.get_target_list())
+
+    for share in target_share_list:
+        share_base = os.path.basename(share)
+        if share_base in EXTERNAL_SHARE_DICT:
+            share_abs_path = EXTERNAL_SHARE_DICT[share_base]
+        else:
+            share_abs_path = os.path.join(DEFAULT_SHARE_ROOT, share)
+        access_token, enable = share_config.get_access_token(share_base)
+        if not access_token:
+            print >> DEBUG_OUTPUT, 'There is no access token:' + share_base
+            continue
+        if enable != "1":
+            print >> DEBUG_OUTPUT, 'There is no enabled:' + share_base
+            continue
+        if is_share_available(share_base, share_abs_path):
+            dropbox_client = DropboxClient(APP_KEY, APP_SECRET)
+            dropbox_client.access_token = access_token
+            dropbox_client.get_proxy = proxy_manager
+            dsync_dict[share_base] = DropboxSync(share_abs_path, dropbox_client)
+
+    # Azukeru
+    share_config = ShareConfig(AZUKERU_SHARE_CONFIG_FILE, AZUKERU_SPLIT)
+    share_config.lock()
+    share_config.load()
+    share_config.unlock()
+    target_share_list = get_target_share_list(opt,
+                            share_config.get_target_list())
+
+    for share in target_share_list:
+        share_base = os.path.basename(share)
+        if share_base in EXTERNAL_SHARE_DICT:
+            share_abs_path = EXTERNAL_SHARE_DICT[share_base]
+        else:
+            share_abs_path = os.path.join(DEFAULT_SHARE_ROOT, share)
+
+        if is_share_available(share_base, share_abs_path):
+            login_id, password, host = share_config.get_azukeru_setting(share_base)
+            sess = azukeru.AzukeruSession()
+            sess.set_auth(login_id, password)
+            sess.set_endpoint(host)
+            sess.get_proxy = proxy_manager
+            dsync_dict[share_base] = AzukeruSync(share_abs_path, sess, opt.opts.debug, DEBUG_OUTPUT)
+
+    is_last_error = False
+    clear_notify()
+    clear_azukeru_notify()
+    err_retry_remain = 0
+
+    while True:
+        raps_sync_mgr.sync()
+
+        event = ""
+        event_args = ()
+        try:
+            proxy_manager.clear()
+            for share in dsync_dict:
+                if opt.opts.debug:
+                    time_start = datetime.now()
+                    print >> DEBUG_OUTPUT, 'dsync start:' + str(time_start)
+                dsync = dsync_dict[share]
+                if is_last_error:
+                    dsync.try_sync_for_local()
+                else:
+                    if dsync.update_sync_tree_for_local():
+                        dsync.try_sync_for_local()
+                    elif dsync.update_sync_tree_for_server():
+                        dsync.try_sync_for_server()
+                if opt.opts.debug:
+                    time_end = datetime.now()
+                    print >> DEBUG_OUTPUT, 'dsync end:' + str(time_end)
+                    time_measure = time_end - time_start
+                    print >> DEBUG_OUTPUT, 'dsync time:' + str(time_measure)
+
+            if is_last_error:
+                clear_notify()
+                is_last_error = False
+                err_retry_remain = 0
+
+        except (IOError), err:
+            _debug("Dropbox:exception1\n")
+            if os.path.exists("/etc/beta"):
+                traceback.print_exc(file=open("/dev/console", "w"))
+            if opt.opts.debug:
+                traceback.print_exc(file=DEBUG_OUTPUT)
+            if err.errno == errno.ENOSPC:
+                if isinstance(dsync, DropboxSync):
+                    event = ERR_DROPBOX_NO_SPACE_ON_LOCAL
+                elif isinstance(dsync, AzukeruSync):
+                    event = ERR_AZUKERU_NO_SPACE_ON_LOCAL
+                else:
+                    event = ERR_NASDSYNC
+                    _debug("Dropbox:no space on local, but unknown sync.\n")
+                event_args = (share,)
+                err_retry_remain = 1
+            else:
+                if isinstance(dsync, DropboxSync):
+                    event = ERR_DROPBOX_SYNC
+                elif isinstance(dsync, AzukeruSync):
+                    event = ERR_AZUKERU_SYNC
+                else:
+                    event = ERR_NASDSYNC
+                    _debug("Dropbox:unknown sync.\n")
+                event_args = (share, "errno:" + str(err.errno))
+            is_last_error = True
+
+        except InsufficientSpaceDropboxError:
+            event = ERR_DROPBOX_NO_SPACE_ON_SERVER
+            event_args = ()
+            err_retry_remain = 1
+            is_last_error = True
+
+        except BaseDropboxError, e:
+            event = ERR_DROPBOX_SYNC
+            event_args = (share, e.__class__.__name__)
+            is_last_error = True
+
+        except:
+            _debug("Dropbox:exception2\n")
+            exctype, value = sys.exc_info()[:2]
+            if os.path.exists("/etc/beta"):
+                traceback.print_exc(file=open("/dev/console", "w"))
+            if opt.opts.debug:
+                traceback.print_exc(file=DEBUG_OUTPUT)
+            if is_timeout_err(value):
+                event = ERR_DROPBOX_TIMEOUT
+                event_args = (share,)
+            elif isinstance(value, azukeru.ErrorResponse):
+                _debug("status = " + str(value.status) + "\n")
+                _debug("reason = " + str(value.reason) + "\n")
+                _debug("error_code = " + str(value.error_code) + "\n")
+                _debug("error_string = " + str(value.error_string) + "\n")
+                if (value.status == azukeru.STATUS_CONFLICT and
+                    value.error_code == azukeru.ERROR_CODE_QUOTA_LIMIT_OVER):
+                    event = ERR_AZUKERU_NO_SPACE_ON_SERVER
+                    event_args = ()
+                    err_retry_remain = 1
+                else:
+                    event = ERR_AZUKERU_SYNC
+                    event_args = (share, "ErrorResponse:" + str(value.status))
+            else:
+                if isinstance(dsync, DropboxSync):
+                    event = ERR_DROPBOX_SYNC
+                elif isinstance(dsync, AzukeruSync):
+                    event = ERR_AZUKERU_SYNC
+                else:
+                    event = ERR_NASDSYNC
+                    _debug("Dropbox:unknown sync.\n")
+                event_args = (share, str(exctype))
+            is_last_error = True
+
+        if not is_last_error:
+            time.sleep(SHARE_CHECK_PERIOD)
+            continue
+
+        if err_retry_remain:
+            err_retry_remain -= 1
+        else:
+            err_retry_remain = RECOVER_CNT
+
+        if opt.opts.debug:
+            print >> DEBUG_OUTPUT, 'error time:' + str(datetime.now())
+            print >> DEBUG_OUTPUT, 'err_retry_remain:' + str(err_retry_remain)
+
+        if err_retry_remain:
+            time.sleep(RECOVER_PERIOD)
+        else:
+            if event:
+                log_event(event, event_args)
+            time.sleep(RETRY_PERIOD)
+
+except:
+    _debug("Dropbox:exception3\n")
+    if os.path.exists("/etc/beta"):
+        traceback.print_exc(file=open("/dev/console", "w"))
+    if opt.opts.debug:
+        traceback.print_exc(file=DEBUG_OUTPUT)
+    sys.exit(4)

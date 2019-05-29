@@ -1,0 +1,4 @@
+#!/bin/sh -x
+if /usr/local/bin/isphotomodel.sh; then
+	/usr/local/bin/hotplug.sh $*
+fi

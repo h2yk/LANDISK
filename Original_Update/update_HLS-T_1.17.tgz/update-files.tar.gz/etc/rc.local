@@ -1,0 +1,104 @@
+#!/bin/sh
+#
+# rc.local
+#
+# This script is executed at the end of each multiuser runlevel.
+# Make sure that the script will "exit 0" on success or any other
+# value on error.
+#
+# In order to enable or disable this script just change the execution
+# bits.
+#
+# By default this script does nothing.
+PATH=$PATH:/usr/local/sbin:/usr/local/bin
+
+__err() {
+	local MESSAGE="$*"
+	/usr/local/bin/ledcont err
+	[ "${MESSAGE}" != '' ] && echo "ERROR:${MESSAGE}"
+}
+
+__delete_survival_files() {
+	mount -o remount,rw /
+
+	# ユーザー編集中の突如電源断などで残存しうるもの
+	rm /etc/passwd.lock 2> /dev/null
+	rm /etc/shadow.lock 2> /dev/null
+	rm /etc/group.lock 2> /dev/null
+	rm /etc/gshadow.lock 2> /dev/null
+
+	mount -o remount,ro /
+}
+
+/usr/local/bin/ledcont progress
+
+__delete_survival_files
+
+date
+
+[ -f /etc/beta ] && /usr/local/bin/busybox telnetd -l /bin/sh
+
+mount -o remount,ro,noatime,nodiratime / || __err 'remount / ro'
+
+smartctl -d marvell --smart=on /dev/sda || __err 'smart on'
+
+### FIXME!! HLS-T筐体で起動完了時にLED赤点滅させないようにするための暫定処置
+#/etc/init.d/usbhdmng start || __err 'usbhdmng start'
+/etc/init.d/usbhdmng start
+
+if [ -f /usr/local/bin/init.php ]; then
+	/usr/local/bin/init.php || __err 'init.php'
+else
+	mount /dev/sda6 /mnt/sataraid1 || __err 'mount sataraid1'
+	/etc/init.d/samba start || __err 'samba start'
+fi
+
+# 初回起動時もしくはFWupdate後起動時にfirmware確認のスケジュールを設定
+/usr/local/bin/firmware_schedule_setting.php
+
+# 初期化後のPINコード対策(2つの理由あり)
+PINCODE_CURRENT=$(/usr/local/bin/rl3_pincode.sh current 2> /dev/null)
+if [ ! -f '/usr/local/rl3/bin/conf/pincode' -a "${PINCODE_CURRENT}" != '' ]; then
+	/usr/local/bin/rl3_pincode.sh regist_init > /dev/null 2>&1
+fi
+
+DHCP=0
+if ! /usr/local/bin/isstatic.sh eth0; then
+	if ! /usr/local/bin/issuccessdhcp.sh eth0; then
+		DHCP=1
+	fi
+fi
+
+LINKUP=0
+if ! ethtool eth0 | grep 'Link detected: yes'; then
+	LINKUP=1
+fi
+
+DATAPART=0
+if ! mount | grep "/mnt/sataraid1"; then
+	echo '!!! Internal data partition is dead.'
+	DATAPART=1
+fi
+
+APACHE=0
+if ! ps axf | grep 'apache2' | grep -v 'grep'; then
+	APACHE=1
+fi
+
+powerlog="/mnt/hda5/factory_log/powerlog"
+echo "`LANG=C date`: boot_done: DHCP=${DHCP} LINKUP=${LINKUP} DATAPART=${DATAPART} APACHE=${APACHE}" >> $powerlog
+if [ ${LINKUP} -ne 0 -o ${DATAPART} -ne 0 -o ${APACHE} -ne 0 ]; then
+	/usr/local/bin/ledcont err
+fi
+
+if /usr/local/bin/isphotomodel.sh; then
+	insmod /lib/modules/2.6.31.8/fs/texfat/texfat.ko
+	if [ -d /sys/devices/platform/ehci_marvell.*/usb1/1-1/ ]; then
+		/usr/local/bin/ledcont external_connected
+	fi
+fi
+
+/usr/local/bin/ledcont clear_progress
+date
+echo "$$" > /var/lock/lanicn/.boot-done
+exit 0

@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# ネットワーク設定等からのethインターフェース再起動時は
+# ここでrl3の再起動はしないようにするためのフラグ
+IFPLUGGING_FLAG=/tmp/ifplugging
+
+rl3_restart(){
+	/etc/init.d/rl3.sh stop
+	/etc/init.d/rl3.sh start
+}
+	
+if [ -e $IFPLUGGING_FLAG ]; then
+	RL3_ENABLE="$(/mnt/hda5/bin/commonconfig.php remotelink3 --item 'RL3_利用区分')"
+	if [ ${RL3_ENABLE} -eq 1 ]; then
+		rl3_restart &
+	fi
+fi	
+
+
