@@ -50,3 +50,9 @@ mount -o rw,remount /
 ```
 
 to edit system files
+
+## Licenses
+
+landisk-update.sh is modified from original package, so license of the file is their own.
+
+Other files are under MIT license.
